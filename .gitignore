@@ -1,0 +1,31 @@
+# Build directories
+build/
+**/build/
+
+# ESP-IDF dependencies
+managed_components
+**/components/.idf/
+
+# Project configuration (auto-generated; keep sdkconfig.defaults instead)
+sdkconfig
+sdkconfig.old
+
+# CMake and IDE files
+CMakeCache.txt
+CMakeFiles/
+Makefile
+.idea/
+*.suo
+*.sln
+
+# Python environment files
+__pycache__/
+*.pyc
+*.pyo
+
+# ESP32 toolchain and flash files
+.espressif/
+*.bin
+*.elf
+*.map
+*.log

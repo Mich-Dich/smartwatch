@@ -1,0 +1,46 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake Configure",
+            "type": "shell",
+            "command": "source ~/esp/esp-idf/export.sh",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build",
+            "type": "shell",
+            "command": "clear; idf.py build",
+            "dependsOn": ["CMake Configure"],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "Clean Build",
+            "type": "shell",
+            "command": "rm -rf build && idf.py build",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Flash",
+            "type": "shell",
+            "command": "idf.py flash",
+            "group": "build",
+            "problemMatcher": []
+        },
+        {
+            "label": "Build and Flash",
+            "dependsOn": ["Build"],
+            "dependsOrder": "sequence",   // runs Build first, then the command below
+            "type": "shell",
+            "command": "idf.py build && idf.py flash",
+            "group": "build",
+            "problemMatcher": []
+        }
+    ]
+}
