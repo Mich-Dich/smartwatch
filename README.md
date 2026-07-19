@@ -8,19 +8,17 @@
 ls /dev/ttyUSB* /dev/ttyACM*
 ```
 
+## Export needed commands
+```bash
+source ~/esp/esp-idf/export.sh
+```
 
 ## Set Target
 ```bash
 idf.py set-target esp32s3
 ```
 
-## Export needed commands
-```bash
-source ~/esp/esp-idf/export.sh
-```
-
-
 ## Build & Flash
 ```bash
-idf.py build && idf.py flash monitor
+clear; idf.py build && idf.py flash monitor
 ```

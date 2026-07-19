@@ -10,13 +10,21 @@
 #include <cmath>
 #include <algorithm>
 #include <array>
+#include <vector>
+#include <time.h>
 
 // ESP-IDF headers
 #include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "freertos/task.h"
 #include "esp_system.h"
 #include "esp_log.h"
 #include "esp_dsp.h"
+#include "esp_event.h"
+#include "esp_netif.h"
+#include "esp_sntp.h"
+#include "esp_timer.h"
+#include "nvs_flash.h"
 
 // BSP and LVGL
 #include "lvgl.h"
@@ -30,11 +38,15 @@
 
 // FORWARD DECLARATIONS =====================================================================================
 
+extern const lv_font_t                  inconsolata_regular_64;
+
+extern const lv_font_t                  inconsolata_regular_48;
+
 namespace APP {
 
     // CONSTANTS ============================================================================================
 
-    constexpr const char* TAG = "audio_fft";
+    constexpr const char*               TAG = "audio_fft";
 
     // MACROS ===============================================================================================
 

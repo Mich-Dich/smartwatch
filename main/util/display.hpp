@@ -19,6 +19,9 @@ namespace APP::display {
 
     void fullscreen_canvas(lv_timer_cb_t timer_cb);
 
+    
+    void draw_background_pattern_arcs_markers_hexagon(lv_obj_t* parent);
+
     // TEMPLATE DECLARATION =================================================================================
 
     // template<size_t WIDTH, size_t HEIGHT>
