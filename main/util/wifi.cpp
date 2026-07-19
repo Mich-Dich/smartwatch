@@ -29,23 +29,29 @@ namespace APP::wifi {
     static esp_timer_handle_t               s_periodic_timer = nullptr;
     
     static bool                             s_initialized = false;
+    
+    static esp_timer_handle_t               s_retry_timer = nullptr;
+    
+    static u32                              s_long_term_interval = 0;  // store for later
 
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
     
-    static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
+    static void wifi_event_handler(void* arg, esp_event_base_t event_base, i32 event_id, void* event_data);
     
     static bool try_connect_to_saved_networks();
     
     static bool perform_sntp_sync();
+
+    static void retry_sync_timer_cb(void* arg);
 
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
 
     // Event handler 
-    static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
+    static void wifi_event_handler(void* arg, esp_event_base_t event_base, i32 event_id, void* event_data) {
 
         if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED)
             xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
@@ -115,6 +121,16 @@ namespace APP::wifi {
         }
         ESP_LOGW("SNTP", "Sync timeout - time may be inaccurate");
         return false;
+    }
+
+
+    static void retry_sync_timer_cb(void* arg) {
+
+        if (sync_time()) {      // Try to sync; if successful, switch to long‑term interval
+
+            stop_retry_sync();                              // Stop this retry timer
+            start_periodic_sync(s_long_term_interval);      // Start the normal periodic sync with the long‑term interval
+        }
     }
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
@@ -195,7 +211,7 @@ namespace APP::wifi {
     }
 
 
-    void start_periodic_sync(uint32_t interval_ms) {
+    void start_periodic_sync(u32 interval_ms) {
         if (!s_initialized) {
             ESP_LOGE("WiFiSync", "Must call init() before starting periodic sync");
             return;
@@ -218,6 +234,36 @@ namespace APP::wifi {
             esp_timer_delete(s_periodic_timer);
             s_periodic_timer = nullptr;
         }
+    }
+
+
+    void stop_retry_sync() {
+
+        if (s_retry_timer) {
+
+            esp_timer_stop(s_retry_timer);
+            esp_timer_delete(s_retry_timer);
+            s_retry_timer = nullptr;
+        }
+    }
+
+
+    void start_retry_sync_until_success(u32 retry_interval_ms, u32 long_term_interval_ms) {
+
+        if (!s_initialized) {
+            ESP_LOGE("WiFiSync", "Must call init() first");
+            return;
+        }
+        stop_retry_sync();                                      // Stop any existing retry timer and normal periodic sync
+        stop_periodic_sync();
+
+        s_long_term_interval = long_term_interval_ms;           // Store the long‑term interval for later
+
+        esp_timer_create_args_t args = {};
+        args.callback = &retry_sync_timer_cb;
+        args.name = "wifi_retry_sync";
+        ESP_ERROR_CHECK(esp_timer_create(&args, &s_retry_timer));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(s_retry_timer, retry_interval_ms * 1000ULL));
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

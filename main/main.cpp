@@ -97,13 +97,16 @@ extern "C" void app_main() {
     // Start the update timer
     static clock_labels labels = { time_label, date_label };
     lv_timer_create(update_clock_cb, 1000, &labels);
-
     bsp_display_unlock();
 
     // Time synchronisation
     ESP_LOGI(APP::TAG, "First time sync attempt");
     APP::wifi::sync_time();
-    APP::wifi::start_periodic_sync(60 * 60 * 1000);   // every 60 minutes
+    // Start the startup retry: try every 2 minutes until time is synced,
+    // then automatically switch to every 2 hours.
+    APP::wifi::start_retry_sync_until_success(  2 * 60 * 1000,          // 2 min
+                                                2 * 60 * 60 * 1000);    // 2 hours
+
     ESP_LOGI(APP::TAG, "Clock running");
 }
 

@@ -45,11 +45,20 @@ namespace APP::wifi {
 
 
     // Start a timer that calls sync_time() every interval_ms milliseconds.
-    void start_periodic_sync(uint32_t interval_ms);
+    void start_periodic_sync(u32 interval_ms);
 
 
     // Stop the periodic sync timer (if running).
     void stop_periodic_sync();
+
+
+    // stop the startup retry timer
+    void stop_retry_sync();
+
+
+    // Start a retry loop: try every retry_interval_ms until time sync succeeds,
+    // then automatically switch to long_term_interval_ms.
+    void start_retry_sync_until_success(u32 retry_interval_ms, u32 long_term_interval_ms);
 
     // TEMPLATE DECLARATION =================================================================================
 
