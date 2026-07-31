@@ -1,7 +1,7 @@
 {
     "C++ Header Template": {
         "prefix": "template_cpp_header",
-        "scope": "cpp",
+        "scope": "c,cpp",
         "body": [
             "",
             "#pragma once",

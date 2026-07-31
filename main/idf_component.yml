@@ -1,6 +1,11 @@
-## IDF Component Manager Manifest File
+version: "1.0.0"
+
 dependencies:
-  lvgl/lvgl:
-    version: "^9.*"
+
+  esp_lcd_sh8601:
+    version: "*"
     public: true
-  espressif/esp-dsp: '*'
+
+  lvgl/lvgl:
+    version: "^8"
+    public: true

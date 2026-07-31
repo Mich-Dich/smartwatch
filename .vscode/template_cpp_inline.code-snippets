@@ -1,7 +1,7 @@
 {
     "C++ Inline Template": {
         "prefix": "template_cpp_inline",
-        "scope": "cpp",
+        "scope": "c,cpp",
         "body": [
             "#pragma once",
             "",
