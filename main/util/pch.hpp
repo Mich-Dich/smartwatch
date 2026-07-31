@@ -11,7 +11,9 @@
 #include <algorithm>
 #include <array>
 #include <vector>
+#include <atomic>
 #include <time.h>
+#include <unordered_map>
 
 // ESP-IDF headers
 #include "freertos/FreeRTOS.h"
@@ -46,9 +48,84 @@ namespace APP {
 
     // CONSTANTS ============================================================================================
 
-    constexpr const char*               TAG = "audio_fft";
+    constexpr const char*               TAG = "application";
 
     // MACROS ===============================================================================================
+
+    #define VALIDATE(cond, action, tag, success_msg, fail_fmt, ...)                                         \
+    do {                                                                                                    \
+        if ((cond)) {                                                                                       \
+            ESP_LOGI(tag, "%s", success_msg);                                                               \
+        } else {                                                                                            \
+            ESP_LOGE(tag, fail_fmt __VA_OPT__(,) __VA_ARGS__);                                              \
+            action;                                                                                         \
+        }                                                                                                   \
+    } while(0);
+
+
+    #define VALIDATE_S(cond, action, tag, fail_fmt, ...)                                                    \
+    do {                                                                                                    \
+        if ( !(cond)) {                                                                                     \
+            ESP_LOGE(tag, fail_fmt __VA_OPT__(,) __VA_ARGS__);                                              \
+            action;                                                                                         \
+        }                                                                                                   \
+    } while(0);
+
+    // Force code to be inline
+    #define FORCE_INLINE                                    inline __attribute__((always_inline))
+
+    #define FORCE_INLINE_R                                  [[nodiscard]] FORCE_INLINE
+    
+    // getters ----------------------------------------------------------------------------------------------
+
+    #define DEFAULT_GETTER(type, name)				        FORCE_INLINE_R type get_##name() { return m_##name; }
+
+    #define DEFAULT_GETTER_P(type, name)				    FORCE_INLINE_R type* get_##name() { return m_##name.get(); }
+
+    #define DEFAULT_GETTER_REF(type, name)			        FORCE_INLINE_R type& get_##name##_ref() { return m_##name; }
+
+    #define DEFAULT_GETTER_C(type, name)			        FORCE_INLINE_R type get_##name() const { return m_##name; }
+
+    #define DEFAULT_GETTER_CC(type, name)			        FORCE_INLINE_R const type& get_##name() const { return m_##name; }
+
+    #define DEFAULT_GETTER_POINTER(type, name)		        FORCE_INLINE_R type* get_##name##_pointer() { return &m_##name; }
+
+    #define DEFAULT_GETTERS(type, name)				        DEFAULT_GETTER(type, name)					                \
+                                                            DEFAULT_GETTER_REF(type, name)					            \
+                                                            DEFAULT_GETTER_POINTER(type, name)
+
+    #define DEFAULT_GETTERS_C(type, name)			        DEFAULT_GETTER_C(type, name)			                    \
+                                                            DEFAULT_GETTER_POINTER(type, name)
+
+    #define GETTER(type, func_name, var_name)		        FORCE_INLINE_R type get_##func_name() { return var_name; }
+
+    #define GETTER_C(type, func_name, var_name)		        FORCE_INLINE_R type get_##func_name() const { return var_name; }
+
+    #define GETTER_CC(type, func_name, var_name)		    FORCE_INLINE_R const type& get_##func_name() const { return var_name; }
+
+    // setters ----------------------------------------------------------------------------------------------
+
+    #define DEFAULT_SETTER(type, name)				        FORCE_INLINE void set_##name(type name) { m_##name = name; }
+
+    #define SETTER(type, func_name, var_name)               FORCE_INLINE void set_##func_name(type value) { var_name = value; }
+
+    // both together ----------------------------------------------------------------------------------------
+
+    #define DEFAULT_GETTER_SETTER(type, name)				DEFAULT_GETTER(type, name)				                    \
+                                                            DEFAULT_SETTER(type, name)
+
+    #define DEFAULT_GETTER_SETTER_C(type, name)				DEFAULT_GETTER_C(type, name)			                    \
+                                                            DEFAULT_SETTER(type, name)
+
+    #define DEFAULT_GETTER_SETTER_ALL(type, name)			DEFAULT_SETTER(type, name)				                    \
+                                                            DEFAULT_GETTER(type, name)				                    \
+                                                            DEFAULT_GETTER_POINTER(type, name)
+
+    #define GETTER_SETTER(type, func_name, var_name)		GETTER(type, func_name, var_name)		                    \
+                                                            SETTER(type, func_name, var_name)
+
+    #define GETTER_SETTER_C(type, func_name, var_name)		GETTER_C(type, func_name, var_name)	                        \
+                                                            SETTER(type, func_name, var_name)
 
     // TYPES ================================================================================================
 

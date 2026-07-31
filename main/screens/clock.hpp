@@ -1,10 +1,12 @@
 
 #pragma once
 
+#include "UI/screen.hpp"
+
 
 // FORWARD DECLARATIONS =====================================================================================
 
-namespace APP::SA {
+namespace APP::UI {
 
     // CONSTANTS ============================================================================================
 
@@ -16,13 +18,17 @@ namespace APP::SA {
 
     // FUNCTION DECLARATION =================================================================================
 
-    void timer_cb(lv_timer_t* timer);
-
-    
-    extern "C" void audio_fft_task(void* pv_parameters);
-
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================
+
+    class clock_screen : public screen {
+    public:
+
+        SCREEN_NAME("clock")
+        
+        void create(lv_obj_t* screen) override;
+
+    };
 
 }

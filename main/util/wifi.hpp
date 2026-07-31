@@ -19,12 +19,20 @@ namespace APP::wifi {
         const char*                 password;
     };
 
+
+    using time_synced_callback = void (*)(time_t current_time);
+
     // STATIC VARIABLES =====================================================================================
 
     // FUNCTION DECLARATION =================================================================================
 
     // Call once at startup. Must happen before any other function.
     void init();
+
+    
+    // Register a callback that will be called every time sync_time() succeeds.
+    // Pass nullptr to remove it.
+    void set_time_synced_callback(time_synced_callback cb);
 
 
     // Replace the stored network list with the given credentials.

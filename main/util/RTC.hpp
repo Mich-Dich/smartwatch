@@ -1,11 +1,11 @@
-
 #pragma once
 
+#include <ctime>
 
 
 // FORWARD DECLARATIONS =====================================================================================
 
-namespace APP::display {
+namespace APP::RTC {
 
     // CONSTANTS ============================================================================================
 
@@ -17,18 +17,16 @@ namespace APP::display {
 
     // FUNCTION DECLARATION =================================================================================
 
-    void fullscreen_canvas(lv_timer_cb_t timer_cb);
-
-    
-    void draw_background_pattern_arcs_markers_hexagon(lv_obj_t* parent);
+    bool init();
 
 
-    void draw_background_pattern_002(lv_obj_t* parent);
+    bool set_time(const struct tm* timeinfo);
+
+
+    bool get_time(struct tm* timeinfo);
 
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================
 
 }
-
-#include "display.inl"

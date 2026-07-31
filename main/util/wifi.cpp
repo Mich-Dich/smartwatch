@@ -34,6 +34,8 @@ namespace APP::wifi {
     
     static u32                              s_long_term_interval = 0;  // store for later
 
+    static time_synced_callback s_on_time_synced = nullptr;
+
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
@@ -79,16 +81,11 @@ namespace APP::wifi {
 
             ESP_ERROR_CHECK(esp_wifi_start());
             esp_err_t ret = esp_wifi_connect();
-            if (ret != ESP_OK) {
-                ESP_LOGW("WiFiSync", "esp_wifi_connect() failed: %s", esp_err_to_name(ret));
-                continue;
-            }
+            VALIDATE_S(ret == ESP_OK, continue, "WiFiSync", "esp_wifi_connect() failed: %s", esp_err_to_name(ret));
 
             // Wait for an IP (up to 15 seconds)
             xEventGroupClearBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
-            EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT,
-                                                   pdFALSE, pdTRUE,
-                                                   pdMS_TO_TICKS(15000));
+            EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group, WIFI_CONNECTED_BIT, pdFALSE, pdTRUE, pdMS_TO_TICKS(15000));
             if (bits & WIFI_CONNECTED_BIT) {
                 ESP_LOGI("WiFiSync", "Connected to %s", cred.ssid);
                 return true;
@@ -126,10 +123,10 @@ namespace APP::wifi {
 
     static void retry_sync_timer_cb(void* arg) {
 
-        if (sync_time()) {      // Try to sync; if successful, switch to long‑term interval
+        if (sync_time()) {      // Try to sync; if successful, switch to long-term interval
 
             stop_retry_sync();                              // Stop this retry timer
-            start_periodic_sync(s_long_term_interval);      // Start the normal periodic sync with the long‑term interval
+            start_periodic_sync(s_long_term_interval);      // Start the normal periodic sync with the long-term interval
         }
     }
 
@@ -138,7 +135,8 @@ namespace APP::wifi {
     // FUNCTION IMPLEMENTATION =========================================================================================
 
     void init() {
-        // NVS
+            
+        // NVS (must be ready)
         esp_err_t ret = nvs_flash_init();
         if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
             ESP_ERROR_CHECK(nvs_flash_erase());
@@ -146,22 +144,24 @@ namespace APP::wifi {
         }
         ESP_ERROR_CHECK(ret);
 
-        // TCP/IP stack and event loop
+        // Clean up any previous Wi‑Fi state that may be stuck
+        esp_wifi_deinit();          // safely does nothing if not initialised
+        esp_netif_deinit();         // (optional but clean)
+
+        // TCP/IP stack and event loop (fresh start)
         ESP_ERROR_CHECK(esp_netif_init());
         ESP_ERROR_CHECK(esp_event_loop_create_default());
         esp_netif_create_default_wifi_sta();
 
-        // Wi‑Fi driver init (once)
+        // Wi‑Fi driver init
         wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
         ESP_ERROR_CHECK(esp_wifi_init(&cfg));
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-        // Register event handlers
+        // Event handlers
         esp_event_handler_instance_t instance_any_id, instance_got_ip;
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(
-            WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, nullptr, &instance_any_id));
-        ESP_ERROR_CHECK(esp_event_handler_instance_register(
-            IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, nullptr, &instance_got_ip));
+        ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, nullptr, &instance_any_id));
+        ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, nullptr, &instance_got_ip));
 
         // Event group for connection management
         s_wifi_event_group = xEventGroupCreate();
@@ -170,55 +170,50 @@ namespace APP::wifi {
     }
 
 
-    void set_credentials(const std::vector<Credential>& creds) {
-        s_credentials = creds;
-    }
+    void set_time_synced_callback(time_synced_callback cb)          { s_on_time_synced = cb; }
 
 
-    void set_credentials(std::initializer_list<Credential> creds) {
-        set_credentials(std::vector<Credential>(creds));
-    }
+    void set_credentials(const std::vector<Credential>& creds)      { s_credentials = creds; }
+
+
+    void set_credentials(std::initializer_list<Credential> creds)   { set_credentials(std::vector<Credential>(creds)); }
 
 
     bool sync_time() {
-        if (!s_initialized) {
-            ESP_LOGE("WiFiSync", "Module not initialised - call init() first");
-            return false;
-        }
-        if (!try_connect_to_saved_networks()) {
-            ESP_LOGW("WiFiSync", "No known network found - will retry later");
-            esp_wifi_stop();
-            return false;
-        }
+
+        VALIDATE_S(s_initialized, return false, "WiFiSync", "Module not initialised - call init() first");
+        VALIDATE_S(try_connect_to_saved_networks(), esp_wifi_stop(); return false, "WiFiSync", "No known network found - will retry later");
 
         bool ok = perform_sntp_sync();
+        if (ok && s_on_time_synced) {
+            time_t now;
+            time(&now);
+            s_on_time_synced(now);            // notify app that time was synced
+        }
 
         esp_wifi_disconnect();
         esp_wifi_stop();
-        ESP_LOGI("WiFiSync", "Wi‑Fi stopped (power save)");
+        ESP_LOGI("WiFiSync", "Wi-Fi stopped (power save)");
         return ok;
     }
 
 
     void disconnect() {
+
         esp_wifi_disconnect();
         esp_wifi_stop();
     }
 
 
-    static void periodic_sync_timer_cb(void* arg) {
-        sync_time();
-    }
+    static void periodic_sync_timer_cb(void* arg)                   { sync_time(); }
 
 
     void start_periodic_sync(u32 interval_ms) {
-        if (!s_initialized) {
-            ESP_LOGE("WiFiSync", "Must call init() before starting periodic sync");
-            return;
-        }
-        if (s_periodic_timer) {
+
+        VALIDATE_S(s_initialized, return, "WiFiSync", "Must call init() before starting periodic sync")
+
+        if (s_periodic_timer)
             stop_periodic_sync();   // avoid duplicate timer
-        }
 
         esp_timer_create_args_t args = {};
         args.callback = &periodic_sync_timer_cb;
@@ -229,6 +224,7 @@ namespace APP::wifi {
 
 
     void stop_periodic_sync() {
+        
         if (s_periodic_timer) {
             esp_timer_stop(s_periodic_timer);
             esp_timer_delete(s_periodic_timer);
@@ -250,14 +246,11 @@ namespace APP::wifi {
 
     void start_retry_sync_until_success(u32 retry_interval_ms, u32 long_term_interval_ms) {
 
-        if (!s_initialized) {
-            ESP_LOGE("WiFiSync", "Must call init() first");
-            return;
-        }
+        VALIDATE_S(s_initialized, return, "WiFiSync", "Must call init() first");
         stop_retry_sync();                                      // Stop any existing retry timer and normal periodic sync
         stop_periodic_sync();
 
-        s_long_term_interval = long_term_interval_ms;           // Store the long‑term interval for later
+        s_long_term_interval = long_term_interval_ms;           // Store the long-term interval for later
 
         esp_timer_create_args_t args = {};
         args.callback = &retry_sync_timer_cb;

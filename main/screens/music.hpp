@@ -1,11 +1,13 @@
 
 #pragma once
 
+#include "UI/screen.hpp"
+
 
 
 // FORWARD DECLARATIONS =====================================================================================
 
-namespace APP::display {
+namespace APP::UI {
 
     // CONSTANTS ============================================================================================
 
@@ -17,18 +19,22 @@ namespace APP::display {
 
     // FUNCTION DECLARATION =================================================================================
 
-    void fullscreen_canvas(lv_timer_cb_t timer_cb);
-
-    
-    void draw_background_pattern_arcs_markers_hexagon(lv_obj_t* parent);
-
-
-    void draw_background_pattern_002(lv_obj_t* parent);
-
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================
 
-}
+    class music_screen : public screen {
+    public:
 
-#include "display.inl"
+        SCREEN_NAME("Music")
+
+        void create(lv_obj_t* screen) override;
+
+    private:
+
+        lv_obj_t*                       m_list = nullptr;       // the scrollable list container
+        std::vector<std::string>        m_files;                // full filenames (for future playback)
+
+    };
+
+}
