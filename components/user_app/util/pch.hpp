@@ -50,9 +50,11 @@
 
 // FORWARD DECLARATIONS =====================================================================================
 
+extern const lv_font_t                  inconsolata_regular_48;
+
 extern const lv_font_t                  inconsolata_regular_64;
 
-extern const lv_font_t                  inconsolata_regular_48;
+extern const lv_font_t                  inconsolata_regular_128;
 
 // TYPES ====================================================================================================
 
@@ -84,14 +86,11 @@ extern const lv_font_t                  inconsolata_regular_48;
     // TYPES ================================================================================================
 
 #ifdef __cplusplus
-    struct clock_module {
+    struct clock {
         
         u8          hours{};
         u8          minutes{};
         u8          seconds{};
-        u16         out_hours{};
-        u16         out_minutes{};
-        u16         out_seconds{};
     };
 
     // CONSTANTS ============================================================================================

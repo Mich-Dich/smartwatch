@@ -141,29 +141,32 @@ namespace APP::UI::screen_manager {
             return;
         }
 
-        // Hide current screen (optional – hide flag)
+        // Remove gesture callback from the current screen (if any)
         if (g_current) {
+            lv_obj_t* old_root = g_current->get_root();
+            if (old_root) {
+                lv_obj_remove_event_cb(old_root, gesture_cb);
+            }
             g_current->hide();
         }
 
-        // Switch internal pointer
         g_current = g_ordered_screens[idx].second.get();
         g_current_name = name;
-
-        // Show the new screen (clear hidden flag)
         g_current->show();
 
-        // **Critical**: load the screen as the active LVGL display screen
         lv_obj_t* root = g_current->get_root();
         if (root) {
             lv_scr_load(root);
+
+            // Enable gesture detection on the root screen
+            lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);
+            lv_obj_add_flag(root, LV_OBJ_FLAG_GESTURE_BUBBLE);
+            lv_obj_add_event_cb(root, gesture_cb, LV_EVENT_GESTURE, nullptr);
         } else {
             ESP_LOGE(TAG, "Screen '%s' has null root", name.c_str());
         }
 
-        // Re‑create gesture overlay on the now‑active screen
-        setup_gesture_detection();
-
+        // No longer call setup_gesture_detection()
         ESP_LOGI(TAG, "Switched to screen '%s'", name.c_str());
     }
 

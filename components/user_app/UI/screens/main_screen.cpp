@@ -2,12 +2,14 @@
 #include "util/pch.hpp"
 #include "main_screen.hpp"
 
+#include "UI/util.hpp"
+
 
 // FORWARD DECLARATIONS ================================================================================================
 
 extern "C" {
 
-    void setBrightens(uint8_t brig);
+    void setBrightens(u8 brig);
 
 }
 
@@ -21,11 +23,6 @@ namespace APP::UI {
 
     // STATIC VARIABLES ================================================================================================
 
-    EventGroupHandle_t      TaskEven;
-    TaskHandle_t            pxBleTask;
-    TaskHandle_t            pxWifiTask;
-    QueueHandle_t           ble_Queue;   // declared extern in ble_scan_bsp.h
-
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
@@ -34,16 +31,38 @@ namespace APP::UI {
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
 
+    f32 get_battery_voltage () {
+
+        f32 adc_value;
+        adc_get_value(&adc_value);      // Read the battery voltage
+        return adc_value;
+    }
+
+
+    u8 convert_battery_voltage_to_percent(const f32 voltage) {
+
+        constexpr f32 V_EMPTY = 3.50f;
+        constexpr f32 V_FULL  = 3.82f;
+        f32 percent = (voltage - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
+        
+        // if (percent < 0.f)
+        //     percent = 0.f;
+        if (percent > 100.f)
+            percent = 100.f;
+
+        return static_cast<u8>(percent);
+    }
+
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
     // FUNCTION IMPLEMENTATION =========================================================================================
 
     // CLASS IMPLEMENTATION ============================================================================================
 
-    main_screen::main_screen() = default;
+    main_screen::main_screen()          = default;
 
 
-    main_screen::~main_screen()     { destroy(); }
+    main_screen::~main_screen()         { destroy(); }
 
     // CLASS PUBLIC ====================================================================================================
 
@@ -51,7 +70,7 @@ namespace APP::UI {
 
         ESP_LOGI(TAG, "Initialising main screen");
 
-        // Set up the UI from SquareLine (if any)
+        // Setup UI from SquareLine (if any) – keep this if needed for other widgets
         setup_ui(&m_ui);
         events_init(&m_ui);
 
@@ -69,28 +88,41 @@ namespace APP::UI {
         uint32_t child_cnt = lv_obj_get_child_cnt(scr);
         for (uint32_t i = 0; i < child_cnt; i++) {
             lv_obj_t* child = lv_obj_get_child(scr, i);
-            if (child != m_time_label) {  // not yet created, but safe
-                lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
-            }
+            // Do not hide newly created labels (they aren't created yet)
+            lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
         }
 
-        // Create a large label for the digital clock
-        m_time_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_time_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_time_label, &lv_font_montserrat_12, 0); // big font
-        lv_label_set_text(m_time_label, "00:00:00");
-        lv_obj_align(m_time_label, LV_ALIGN_CENTER, 0, 0);
+        // Create Hour label
+        m_hour_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_hour_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_hour_label, &inconsolata_regular_128, 0);
+        lv_label_set_text(m_hour_label, "00");
+        lv_obj_align(m_hour_label, LV_ALIGN_CENTER, 0, -60); // adjust Y offset as needed
 
-        // Initialise clock state
-        m_clock.hours = 7;
-        m_clock.minutes = 30;
-        m_clock.seconds = 30;
+        // Create Minute label
+        m_minute_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_minute_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_minute_label, &inconsolata_regular_128, 0);
+        lv_label_set_text(m_minute_label, "00");
+        lv_obj_align(m_minute_label, LV_ALIGN_CENTER, 0, 60); // adjust Y offset
 
-        // Update the label immediately
-        update_clock();
+        // Create Second label (next to minute, blue, smaller)
+        m_second_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_second_label, lv_color_hex(0x0066FF), 0); // blue
+        lv_obj_set_style_text_font(m_second_label, &inconsolata_regular_48, 0); // or lv_font_montserrat_48
+        lv_label_set_text(m_second_label, "00");
+        // Align to the right of the minute label
+        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
 
-        // Start the timer to update every second
-        start_clock();
+        // Create Battery label (top right)
+        m_battery_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_battery_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_battery_label, &inconsolata_regular_48, 0);
+        lv_label_set_text(m_battery_label, "0.0V");
+        lv_obj_align(m_battery_label, LV_ALIGN_TOP_RIGHT, -10, 10); // 10px padding
+
+        update_clock();                     // Update all labels immediately
+        start_clock();                      // Start the timer to update every second
 
         ESP_LOGI(TAG, "main_screen initialised");
     }
@@ -102,16 +134,13 @@ namespace APP::UI {
     void main_screen::hide()            { lv_obj_add_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
 
 
-    void main_screen::destroy() {
-        // LVGL objects are usually automatically freed when the screen is deleted,
-        // but we could call lv_obj_del(m_ui.screen) if needed.
-        // For now, we just clear the pointer.
-    }
+    // LVGL objects are usually automatically freed when the screen is deleted,
+    // but we could call lv_obj_del(m_ui.screen) if needed.
+    // For now, we just clear the pointer.
+    void main_screen::destroy()         { }
 
 
-    lv_obj_t* main_screen::get_root() {
-        return m_ui.screen;
-    }
+    lv_obj_t* main_screen::get_root()   { return m_ui.screen; }
 
 
     // No longer handles any events – all navigation is done by screen_manager.
@@ -120,25 +149,6 @@ namespace APP::UI {
     // CLASS PROTECTED =================================================================================================
 
     // CLASS PRIVATE ===================================================================================================
-
-    void main_screen::out_time(APP::clock_module* clock) {
-        
-        clock->out_hours = clock->hours * 5;
-        clock->out_minutes = clock->minutes;
-        clock->out_seconds = clock->seconds;
-
-        uint8_t bat = clock->out_minutes / 12;
-        clock->out_hours += bat;
-
-        int16_t hour_angle = clock->out_hours * 6 - 90;
-        int16_t min_angle  = clock->out_minutes * 6 - 90;
-        int16_t sec_angle  = clock->out_seconds * 6 - 90;
-
-        lv_img_set_angle(m_ui.screen_img_1, hour_angle * 10);
-        lv_img_set_angle(m_ui.screen_img_2, min_angle * 10);
-        lv_img_set_angle(m_ui.screen_img_3, sec_angle * 10);
-    }
-
     
     void main_screen::start_clock() {
 
@@ -166,26 +176,49 @@ namespace APP::UI {
         // Increment time
         m_clock.seconds++;
         if (m_clock.seconds >= 60) {
+
             m_clock.seconds = 0;
             m_clock.minutes++;
             if (m_clock.minutes >= 60) {
+
                 m_clock.minutes = 0;
                 m_clock.hours++;
-                if (m_clock.hours >= 24) {
+                if (m_clock.hours >= 24)
                     m_clock.hours = 0;
-                }
             }
         }
 
-        // Format HH:MM:SS
-        char time_str[9];
-        snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d",
-                m_clock.hours, m_clock.minutes, m_clock.seconds);
+        // Format strings
+        char hour_str[3], min_str[3], sec_str[3];
+        snprintf(hour_str, sizeof(hour_str), "%02d", m_clock.hours);
+        snprintf(min_str, sizeof(min_str), "%02d", m_clock.minutes);
+        snprintf(sec_str, sizeof(sec_str), "%02d", m_clock.seconds);
 
-        // Update the label
-        if (m_time_label) {
-            lv_label_set_text(m_time_label, time_str);
-        }
+        // Update labels
+        if (m_hour_label)   lv_label_set_text(m_hour_label, hour_str);
+        if (m_minute_label) lv_label_set_text(m_minute_label, min_str);
+        if (m_second_label) lv_label_set_text(m_second_label, sec_str);
+
+        // Get raw percentage
+        const i16 raw = convert_battery_voltage_to_percent(get_battery_voltage());
+
+        // Store in buffer
+        m_battery_buffer[m_battery_index] = raw;
+        m_battery_index = (m_battery_index + 1) % BATTERY_BUFFER_SIZE;
+        if (m_battery_count < BATTERY_BUFFER_SIZE) 
+            m_battery_count++;
+
+        // Compute average over available readings
+        i32 sum = 0;
+        for (u8 i = 0; i < m_battery_count; i++)
+            sum += m_battery_buffer[i];
+
+        // Display the averaged percentage
+        const i16 avg = sum / m_battery_count;
+        char volt_str[8];
+        snprintf(volt_str, sizeof(volt_str), "%d%%", avg);
+        if (m_battery_label)
+            lv_label_set_text(m_battery_label, volt_str);
     }
 
 }

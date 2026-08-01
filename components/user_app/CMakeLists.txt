@@ -21,7 +21,8 @@ target_precompile_headers(${COMPONENT_LIB}      PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:util/pch.hpp>
 )
 
-# target_sources(${COMPONENT_LIB}                 PRIVATE 
-#     "fonts/inconsolata_regular_48.c"
-#     "fonts/inconsolata_regular_64.c"
-# )
+target_sources(${COMPONENT_LIB}                 PRIVATE 
+    "fonts/inconsolata_regular_48.c"
+    "fonts/inconsolata_regular_64.c"
+    "fonts/inconsolata_regular_128.c"
+)

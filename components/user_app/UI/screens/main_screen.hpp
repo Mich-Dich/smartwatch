@@ -46,16 +46,22 @@ namespace APP::UI {
 
     private:
     
-        void out_time(APP::clock_module* clock);
-
         void start_clock();
         
         void update_clock();
 
-        lv_ui                   m_ui;   // holds all widgets
-        APP::clock_module       m_clock{};
+        lv_ui                   m_ui;
+        lv_obj_t*               m_hour_label   = nullptr;
+        lv_obj_t*               m_minute_label = nullptr;
+        lv_obj_t*               m_second_label = nullptr;
+        lv_obj_t*               m_battery_label = nullptr;
         lv_obj_t*               m_time_label = nullptr; 
-        
+
+        APP::clock              m_clock{};
+        static constexpr u8     BATTERY_BUFFER_SIZE = 5;   // window size
+        u8                      m_battery_buffer[BATTERY_BUFFER_SIZE] = {0};
+        u8                      m_battery_index = 0;
+        u8                      m_battery_count = 0;
     };
 
 }

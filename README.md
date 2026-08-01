@@ -22,3 +22,20 @@ idf.py set-target esp32s3
 ```bash
 clear; idf.py build && idf.py flash monitor
 ```
+
+
+
+
+
+
+
+
+
+
+## Font creation
+- URL: https://lvgl.io/tools/fontconverter
+  - Name format: <font-name>-<font-type (regular, ...)>-<height>    
+    - example: inconsolata_regular_64
+  - Bpp: 2 bit-per-pixel
+  - Output format: C file
+  - Range: 0x20-0x7F, 0xB0, 0x2022
