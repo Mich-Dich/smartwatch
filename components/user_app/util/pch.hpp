@@ -50,11 +50,15 @@
 
 // FORWARD DECLARATIONS =====================================================================================
 
+extern const lv_font_t                  inconsolata_regular_26;
+
 extern const lv_font_t                  inconsolata_regular_48;
 
 extern const lv_font_t                  inconsolata_regular_64;
 
 extern const lv_font_t                  inconsolata_regular_128;
+
+extern const lv_font_t                  lv_font_montserrat_24;
 
 // TYPES ====================================================================================================
 
@@ -176,6 +180,10 @@ extern const lv_font_t                  inconsolata_regular_128;
                                                             SETTER(type, func_name, var_name)
 
     // STATIC VARIABLES =====================================================================================
+
+    const inline lv_color_t highlight_color = lv_color_hex(0x1940ff);
+
+    const inline lv_color_t support_color   = lv_color_hex(0x3f60ff);
 
     // FUNCTION DECLARATION =================================================================================
 

@@ -41,7 +41,7 @@ namespace APP::UI {
 
     u8 convert_battery_voltage_to_percent(const f32 voltage) {
 
-        constexpr f32 V_EMPTY = 3.50f;
+        constexpr f32 V_EMPTY = 3.45f;
         constexpr f32 V_FULL  = 3.82f;
         f32 percent = (voltage - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
         
@@ -112,12 +112,12 @@ namespace APP::UI {
         lv_obj_set_style_text_font(m_second_label, &inconsolata_regular_48, 0); // or lv_font_montserrat_48
         lv_label_set_text(m_second_label, "00");
         // Align to the right of the minute label
-        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 10, 0);
+        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 15, -20);
 
         // Create Battery label (top right)
         m_battery_label = lv_label_create(scr);
         lv_obj_set_style_text_color(m_battery_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_battery_label, &inconsolata_regular_48, 0);
+        lv_obj_set_style_text_font(m_battery_label, &inconsolata_regular_26, 0);
         lv_label_set_text(m_battery_label, "0.0V");
         lv_obj_align(m_battery_label, LV_ALIGN_TOP_RIGHT, -10, 10); // 10px padding
 
@@ -200,7 +200,7 @@ namespace APP::UI {
         if (m_second_label) lv_label_set_text(m_second_label, sec_str);
 
         // Get raw percentage
-        const i16 raw = convert_battery_voltage_to_percent(get_battery_voltage());
+        const u8 raw = convert_battery_voltage_to_percent(get_battery_voltage());
 
         // Store in buffer
         m_battery_buffer[m_battery_index] = raw;
@@ -209,14 +209,15 @@ namespace APP::UI {
             m_battery_count++;
 
         // Compute average over available readings
-        i32 sum = 0;
+        u16 sum = 0;
         for (u8 i = 0; i < m_battery_count; i++)
             sum += m_battery_buffer[i];
 
         // Display the averaged percentage
         const i16 avg = sum / m_battery_count;
-        char volt_str[8];
-        snprintf(volt_str, sizeof(volt_str), "%d%%", avg);
+        char volt_str[12];
+        snprintf(volt_str, sizeof(volt_str), "%.2fV %d%%", get_battery_voltage(), avg);
+        // snprintf(volt_str, sizeof(volt_str), "%d%%", avg);
         if (m_battery_label)
             lv_label_set_text(m_battery_label, volt_str);
     }

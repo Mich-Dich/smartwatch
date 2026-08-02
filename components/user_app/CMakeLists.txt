@@ -22,7 +22,8 @@ target_precompile_headers(${COMPONENT_LIB}      PRIVATE
 )
 
 target_sources(${COMPONENT_LIB}                 PRIVATE 
-    "fonts/inconsolata_regular_48.c"
-    "fonts/inconsolata_regular_64.c"
-    "fonts/inconsolata_regular_128.c"
+    "font/inconsolata_regular_26.c"
+    "font/inconsolata_regular_48.c"
+    "font/inconsolata_regular_64.c"
+    "font/inconsolata_regular_128.c"
 )

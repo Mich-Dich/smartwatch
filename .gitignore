@@ -3,7 +3,6 @@ build/
 **/build/
 
 # ESP-IDF dependencies
-managed_components
 **/components/.idf/
 
 # Project configuration (auto-generated; keep sdkconfig.defaults instead)
