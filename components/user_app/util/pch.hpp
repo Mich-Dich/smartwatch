@@ -31,8 +31,10 @@
 
     #include "esp_timer.h"
     #include "esp_wifi_bsp.h"
-    #include "esp_log.h"          // for ESP_LOGI / ESP_LOGE
-
+    #include "esp_log.h"            // for ESP_LOGI / ESP_LOGE
+    #include "esp_sleep.h"          // for light sleep
+    #include "driver/gpio.h"
+    
     #include "adc_bsp.h"
     #include "ble_scan_bsp.h"
     #include "sd_card_bsp.h"

@@ -2,7 +2,15 @@
 #include "screen_manager.hpp"
 
 
+#define USE_ESP_SLEEP_MODE          1
+
 // FORWARD DECLARATIONS ================================================================================================
+
+extern "C" {
+    extern void setBrightens(uint8_t brig);
+
+    extern uint8_t getBrightens();
+}
 
 namespace APP::UI::screen_manager {
 
@@ -27,7 +35,23 @@ namespace APP::UI::screen_manager {
 
     // CONSTANTS =======================================================================================================
 
+    constexpr u32                                                           DIM_TIMER_DURATION = 5 * 1000 * 1000;       // 5 seconds
+    
+    #if USE_ESP_SLEEP_MODE
+        
+        constexpr u32                                                       SLEEP_TIMER_DURATION = 3 * 1000 * 1000;     // 3 seconds after dim
+
+    #endif
+
     // MACROS ==========================================================================================================
+
+    #if USE_ESP_SLEEP_MODE
+
+        #define TOUCH_INT_GPIO                                              GPIO_NUM_27       // e.g., GPIO 27
+
+        #define TOUCH_INT_ACTIVE_LOW                                        1               // 1 if active low (0 = active high)
+
+    #endif
 
     // STATIC VARIABLES ================================================================================================
 
@@ -41,9 +65,25 @@ namespace APP::UI::screen_manager {
 
     static vec_2d                                                           g_touch_max = {};       // -1: not set; 0-100 the coordinate in percent
 
-    static lv_obj_t* overlay_cont = nullptr;
-    static lv_obj_t* overlay_list = nullptr;
-    static bool overlay_shown = false;
+    static lv_obj_t*                                                        overlay_cont = nullptr;
+
+    static lv_obj_t*                                                        overlay_list = nullptr;
+
+    static bool                                                             overlay_shown = false;
+
+    static esp_timer_handle_t                                               s_dim_timer = nullptr;
+
+    static bool                                                             s_is_dimmed = false;
+
+    #if USE_ESP_SLEEP_MODE
+
+        static esp_timer_handle_t                                           s_sleep_timer = nullptr;
+    
+        static bool                                                         s_is_sleeping = false;
+
+    #endif
+
+    static uint8_t                                                          s_previous_brightness = 255;
 
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
@@ -64,7 +104,27 @@ namespace APP::UI::screen_manager {
     static void show_overlay();
 
     static void hide_overlay();
+
+    static void dim_timer_cb(void* arg);
+
+    static void stop_dim_timer();
+
+    static void start_dim_timer();
+
+    #if USE_ESP_SLEEP_MODE
     
+        static void sleep_timer_cb(void* arg);
+
+        static void stop_sleep_timer();
+
+        static void start_sleep_timer();
+
+        static void enter_low_power_mode();
+
+        static void exit_low_power_mode();
+
+    #endif
+
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
@@ -81,7 +141,28 @@ namespace APP::UI::screen_manager {
 
     static void touch_begin_cb(lv_event_t* e) {
 
-        ESP_LOGI(TAG, "Touch start detected");
+        #if USE_ESP_SLEEP_MODE
+
+            if (s_is_sleeping)                                                      // If we were sleeping, wake up first
+                exit_low_power_mode();                                              // The timer will be restarted later
+
+        #endif
+
+        if (s_is_dimmed) {                                                      // Restore brightness if dimmed
+
+            setBrightens(s_previous_brightness);
+            s_is_dimmed = false;
+            ESP_LOGI(TAG, "Brightness restored to %d", s_previous_brightness);
+        }
+
+        stop_dim_timer();
+
+        #if USE_ESP_SLEEP_MODE
+
+            stop_sleep_timer();
+
+        #endif
+        
         lv_indev_t* indev = lv_indev_get_act();
         if (!indev) 
             return;
@@ -111,6 +192,17 @@ namespace APP::UI::screen_manager {
         }
         ESP_LOGI(TAG, "Path height: %d, Path width: %d, Y-start: %d", path_height, total_path_width, g_touch_min.y);
 
+        #if USE_ESP_SLEEP_MODE
+
+            if (!s_is_sleeping)
+                start_dim_timer();
+
+        #else
+
+            start_dim_timer();
+
+        #endif
+        
         g_touch_min = {-1, -1};                             // reset buffers
         g_touch_max = {-1, -1};
     }
@@ -216,7 +308,7 @@ namespace APP::UI::screen_manager {
             const std::string& name = pair.first;
             lv_obj_t* btn = lv_list_add_btn(overlay_list, nullptr, name.c_str());
 
-            // ----- Modern button styling -----
+            // Modern button styling
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x000000), 0);
             lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
             lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), 0);
@@ -279,6 +371,148 @@ namespace APP::UI::screen_manager {
             overlay_shown = false;
         }
     }
+    
+
+    static void dim_timer_cb(void* arg) {
+
+        s_previous_brightness = getBrightens();                                 // Store current brightness before dimming
+        setBrightens(51);                                                       // 20% of 255
+        s_is_dimmed = true;
+        hide_overlay();
+        ESP_LOGI(TAG, "Display dimmed to 20%% brightness");
+
+        #if USE_ESP_SLEEP_MODE
+
+            start_sleep_timer();                                                    // Now start the sleep timer (3 seconds later)
+        
+        #endif
+    }
+
+    
+    static void stop_dim_timer() {
+
+        if (s_dim_timer)
+            esp_timer_stop(s_dim_timer);
+    }
+
+
+    static void start_dim_timer() {
+
+        #if USE_ESP_SLEEP_MODE
+
+            if (s_is_sleeping) 
+                return;                                                             // If we are sleeping, don't start the dim timer (we'll start it after wake)
+
+        #endif
+        
+        if (s_dim_timer == nullptr) {
+            esp_timer_create_args_t args = {
+                .callback = dim_timer_cb,
+                .arg = nullptr,
+                .dispatch_method = ESP_TIMER_TASK,
+                .name = "dim_timer",
+                .skip_unhandled_events = false
+            };
+            ESP_ERROR_CHECK(esp_timer_create(&args, &s_dim_timer));
+        }
+        ESP_ERROR_CHECK(esp_timer_start_once(s_dim_timer, DIM_TIMER_DURATION));
+    }
+
+
+    #if USE_ESP_SLEEP_MODE
+            
+        static void sleep_timer_cb(void* arg) {
+
+            ESP_LOGI(TAG, "Entering low-power mode");
+            enter_low_power_mode();
+        }
+
+
+        static void stop_sleep_timer() {
+
+            if (s_sleep_timer)
+                esp_timer_stop(s_sleep_timer);
+        }
+
+        static void start_sleep_timer() {
+
+            if (s_sleep_timer == nullptr) {
+                esp_timer_create_args_t args = {
+                    .callback = sleep_timer_cb,
+                    .arg = nullptr,
+                    .dispatch_method = ESP_TIMER_TASK,
+                    .name = "sleep_timer",
+                    .skip_unhandled_events = false
+                };
+                ESP_ERROR_CHECK(esp_timer_create(&args, &s_sleep_timer));
+            }
+            ESP_ERROR_CHECK(esp_timer_start_once(s_sleep_timer, SLEEP_TIMER_DURATION));
+        }
+
+
+        static void enter_low_power_mode() {
+
+            // Turn off the display (optional – may be handled by setBrightens(0))
+            setBrightens(0);
+
+            // // Configure the touch interrupt GPIO for wake-up
+            // gpio_config_t io_conf = {
+            //     .pin_bit_mask = (1ULL << TOUCH_INT_GPIO),
+            //     .mode = GPIO_MODE_INPUT,
+            //     .pull_up_en = GPIO_PULLUP_ENABLE,    // Most touch interrupts are open-drain, so pull-up is needed
+            //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            //     .intr_type = GPIO_INTR_DISABLE       // We only use it for wake, not for normal interrupts
+            // };
+            // gpio_config(&io_conf);
+
+            // // Enable wake-up on the GPIO level (choose the level that triggers the interrupt)
+            // // If active low, wake when pin is LOW (0)
+            // // If active high, wake when pin is HIGH (1)
+            // #if TOUCH_INT_ACTIVE_LOW
+            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 0);   // wake on LOW
+            // #else
+            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 1);   // wake on HIGH
+            // #endif
+
+            // // Optionally, keep RTC peripherals powered if needed
+            // // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_ON);
+
+            // ESP_LOGI(TAG, "Entering light sleep, wake on GPIO %d", TOUCH_INT_GPIO);
+            // s_is_sleeping = true;
+
+            // // Enter light sleep
+            // esp_light_sleep_start();
+
+            // // ---- Execution resumes here after wake-up ----
+            // // The touch interrupt has woken us, but the interrupt line might still be asserted.
+            // // We must clear it by reading the touch data (done in exit_low_power_mode).
+        }
+
+        static void exit_low_power_mode() {
+
+            // Re-enable the display and restore previous brightness
+            setBrightens(s_previous_brightness);
+            s_is_dimmed = false;
+            s_is_sleeping = false;
+
+            // // Clear the touch interrupt by reading the touch status.
+            // // This is critical: the touch controller keeps the INT pin low until we read the touch data.
+            // // If you are using LVGL, call its touch driver read function.
+            // // Example (if you have a function like touch_driver_read()):
+            // // touch_driver_read();
+            // // Or call the LVGL input device's read_cb:
+            // // lv_indev_data_t data;
+            // // lv_indev_get_drv(lv_indev_get_next(NULL))->read_cb(NULL, &data);
+            // // Since we don't have the exact driver, we'll just log a warning.
+            // ESP_LOGW(TAG, "Please clear the touch interrupt by reading touch data");
+
+            // // If the touch driver uses I2C/SPI, you may need to reinitialize it because
+            // // the bus may have been powered down. Check your driver's reinit function.
+
+            // ESP_LOGI(TAG, "Exited low-power mode, brightness restored to %d", s_previous_brightness);
+        }
+
+    #endif
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
@@ -342,6 +576,16 @@ namespace APP::UI::screen_manager {
             lv_obj_add_event_cb(root, touch_cb,         LV_EVENT_PRESSING,  nullptr);
             lv_obj_add_event_cb(root, touch_begin_cb,   LV_EVENT_PRESSED,   nullptr);
             lv_obj_add_event_cb(root, touch_end_cb,     LV_EVENT_RELEASED,  nullptr);
+            
+            stop_dim_timer();
+            
+            #if USE_ESP_SLEEP_MODE
+                
+                stop_sleep_timer();
+
+            #endif
+            
+            start_dim_timer();
         } else
             ESP_LOGE(TAG, "Screen '%s' has null root", name.c_str());
 

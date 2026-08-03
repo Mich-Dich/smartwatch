@@ -64,13 +64,13 @@
 
 // STATIC VARIABLES ====================================================================================================
 
-static const char *TAG = "example";
+static const char*                          TAG = "example";
 
-static SemaphoreHandle_t lvgl_mux = NULL;
+static SemaphoreHandle_t                    lvgl_mux = NULL;
 
-static esp_lcd_panel_io_handle_t amoled_bl_handle = NULL;
+static esp_lcd_panel_io_handle_t            amoled_bl_handle = NULL;
 
-static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
+static const sh8601_lcd_init_cmd_t          lcd_init_cmds[] = {
     {0x11, (uint8_t []){0x00}, 0, 80},   
     {0xC4, (uint8_t []){0x80}, 1, 0},
     {0x35, (uint8_t []){0x00}, 1, 0},
@@ -81,11 +81,15 @@ static const sh8601_lcd_init_cmd_t lcd_init_cmds[] = {
     {0x51, (uint8_t []){0xFF}, 1, 0},
 };
 
+static uint8_t                              current_brightness = 255;
+
 // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
 // INTERNAL FUNCTION DECLARATION ===================================================================================
 
 void setBrightens(uint8_t brig);
+
+uint8_t getBrightens();
 
 // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
@@ -93,6 +97,7 @@ void setBrightens(uint8_t brig);
 
 void setBrightens(uint8_t brig) {
 
+    current_brightness = brig;
     uint32_t lcd_cmd = 0x51;
     lcd_cmd &= 0xff;
     lcd_cmd <<= 8;
@@ -100,6 +105,9 @@ void setBrightens(uint8_t brig) {
     uint8_t param = brig;
     esp_lcd_panel_io_tx_param(amoled_bl_handle, lcd_cmd, &param,1);
 }
+
+
+uint8_t getBrightens() { return current_brightness; }
 
 
 static bool example_notify_lvgl_flush_ready(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_io_event_data_t* edata, void* user_ctx) {

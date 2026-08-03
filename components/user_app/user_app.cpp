@@ -5,23 +5,13 @@
 #include "UI/screen_manager.hpp"
 #include "UI/screens/main_screen.hpp"
 #include "UI/screens/settings_screen.hpp"
+#include "UI/screens/wifi_screen.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
 
-lv_ui                   guider_ui;
-
-TaskHandle_t            pxBleTask;
-
-TaskHandle_t            pxWifiTask;
-
 EventGroupHandle_t      TaskEven;
 
-extern "C" {
-
-    void setBrightens(u8 brig);
-
-}
 
 
 namespace APP {
@@ -59,6 +49,7 @@ namespace APP {
 
         APP::UI::screen_manager::register_screen("main", std::move(std::make_unique<APP::UI::main_screen>()));
         APP::UI::screen_manager::register_screen("settings", std::move(std::make_unique<APP::UI::settings_screen>()));
+        APP::UI::screen_manager::register_screen("wifi", std::move(std::make_unique<APP::UI::wifi_screen>()));
         APP::UI::screen_manager::switch_to("main");
     }
 
