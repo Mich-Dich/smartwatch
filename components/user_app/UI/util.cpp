@@ -134,6 +134,79 @@ namespace APP::UI::util {
         lv_obj_move_to_index(canvas, 0);
     }
 
+
+    swipe_direction get_swipe_direction(const touch_movement_data& data) {
+
+        // ---------- Thresholds (tune to your liking) ----------
+        constexpr i8 MIN_SWIPE_LENGTH               = 15;   // minimum net displacement in any direction (percent)
+        constexpr i8 MAX_DEVIATION                  = 30;   // max perpendicular deviation for cardinal swipes
+        constexpr i8 START_REGION                   = 35;   // percentage from edge to consider "near edge"
+        constexpr i8 DIAGONAL_ANGLE_TOL             = 20;   // degrees tolerance around 45° for diagonals
+
+        // Net displacement
+        const i8 dx = data.touch_stop.x - data.touch_start.x;
+        const i8 dy = data.touch_stop.y - data.touch_start.y;
+        const i8 len = std::abs(dx) + std::abs(dy);   // Manhattan length (quick filter)
+        if (len < MIN_SWIPE_LENGTH)
+            return swipe_direction::none;
+
+        double angle = std::atan2(dy, dx) * 180.0 / M_PI;       // Angle in degrees (0 = right, 90 = down, ±180 = left)
+        if (angle < 0) angle += 360.0;                          // Normalize to [0, 360)
+
+        // Determine cardinal direction based on angle
+        swipe_direction dir = swipe_direction::none;
+        if (angle > 45 && angle <= 135)             dir = swipe_direction::down;
+        else if (angle > 135 && angle <= 225)       dir = swipe_direction::left;
+        else if (angle > 225 && angle <= 315)       dir = swipe_direction::up;
+        else                                        dir = swipe_direction::right;  // 315–360 or 0–45
+
+        // Check for diagonal: if the angle is near 45°, 135°, 225°, 315° with tolerance
+        bool is_diag = false;
+        const double mod45 = std::fmod(angle + 45, 90); // distance to nearest 45° multiple
+        if (mod45 < DIAGONAL_ANGLE_TOL || mod45 > 90 - DIAGONAL_ANGLE_TOL) {
+            
+            is_diag = true;
+            // Refine diagonal direction
+            if (angle > 0 && angle < 90)            dir = swipe_direction::down_right;
+            else if (angle > 90 && angle < 180)     dir = swipe_direction::down_left;
+            else if (angle > 180 && angle < 270)    dir = swipe_direction::up_left;
+            else if (angle > 270 && angle < 360)    dir = swipe_direction::up_right;
+        }
+
+        // -------- Start‑region constraints (to avoid accidental swipes) --------
+        // For cardinal directions, we often want the swipe to start near the opposite edge.
+        // For diagonals, start near the corresponding corner.
+        bool start_ok = true;
+        switch (dir) {
+            case swipe_direction::down:         start_ok = (data.touch_start.y <= START_REGION); break;
+            case swipe_direction::up:           start_ok = (data.touch_start.y >= 100 - START_REGION); break;
+            case swipe_direction::right:        start_ok = (data.touch_start.x <= START_REGION); break;
+            case swipe_direction::left:         start_ok = (data.touch_start.x >= 100 - START_REGION); break;
+            case swipe_direction::down_right:   start_ok = (data.touch_start.x <= START_REGION && data.touch_start.y <= START_REGION); break;
+            case swipe_direction::down_left:    start_ok = (data.touch_start.x >= 100 - START_REGION && data.touch_start.y <= START_REGION); break;
+            case swipe_direction::up_right:     start_ok = (data.touch_start.x <= START_REGION && data.touch_start.y >= 100 - START_REGION); break;
+            case swipe_direction::up_left:      start_ok = (data.touch_start.x >= 100 - START_REGION && data.touch_start.y >= 100 - START_REGION); break;
+            default:                            start_ok = false; break;
+        }
+
+        // Also require the path extent (min/max) not to be too large or small? 
+        // We can optionally add checks similar to before, but keep it simple for now.
+
+        // Log everything
+        const char* dir_str[] = {"None","Up","Down","Left","Right","UpLeft","UpRight","DownLeft","DownRight"};
+        ESP_LOGI(TAG,
+            "Swipe detection:\n"
+            "  dx=%2d, dy=%2d, len=%2d, angle=%.1f°, start=(%2d,%2d)\n"
+            "  → direction = %s, start_ok=%s",
+            dx, dy, len, angle,
+            data.touch_start.x, data.touch_start.y,
+            dir_str[static_cast<int>(dir)],
+            start_ok ? "✅" : "❌"
+        );
+
+        return (start_ok && dir != swipe_direction::none) ? dir : swipe_direction::none;
+    }
+
     // CLASS IMPLEMENTATION ============================================================================================
 
     // CLASS PUBLIC ====================================================================================================

@@ -4,8 +4,9 @@
 
 #include "UI/screen_manager.hpp"
 #include "UI/screens/main_screen.hpp"
-#include "UI/screens/settings_screen.hpp"
 #include "UI/screens/wifi_screen.hpp"
+#include "UI/screens/bluetooth_screen.hpp"
+#include "UI/screens/settings_screen.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -48,9 +49,10 @@ namespace APP {
         ble_scan_Init();
 
         APP::UI::screen_manager::register_screen("main", std::move(std::make_unique<APP::UI::main_screen>()));
-        APP::UI::screen_manager::register_screen("settings", std::move(std::make_unique<APP::UI::settings_screen>()));
         APP::UI::screen_manager::register_screen("wifi", std::move(std::make_unique<APP::UI::wifi_screen>()));
-        APP::UI::screen_manager::switch_to("main");
+        APP::UI::screen_manager::register_screen("bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
+        APP::UI::screen_manager::register_screen("settings", std::move(std::make_unique<APP::UI::settings_screen>()));
+        APP::UI::screen_manager::switch_to("bluetooth");
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

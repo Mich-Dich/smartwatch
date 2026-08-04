@@ -1,6 +1,9 @@
 #include "util/pch.hpp"
 #include "screen_manager.hpp"
 
+#include "UI/util.hpp"
+
+
 
 #define USE_ESP_SLEEP_MODE          1
 
@@ -15,23 +18,6 @@ extern "C" {
 namespace APP::UI::screen_manager {
 
     // TYPES ===========================================================================================================
-
-    struct vec_2d {
-
-        i8          x{};
-        i8          y{};
-
-    };
-    
-    // Equality / inequality
-    bool operator==(const vec_2d& a, const vec_2d& b)   { return a.x == b.x && a.y == b.y; }
-    bool operator!=(const vec_2d& a, const vec_2d& b)   { return !(a == b); }
-
-    // Component‑wise ordering (partial order)
-    bool operator< (const vec_2d& a, const vec_2d& b)   { return a.x < b.x && a.y < b.y; }
-    bool operator> (const vec_2d& a, const vec_2d& b)   { return b < a; }                     // or a.x > b.x && a.y > b.y
-    bool operator<=(const vec_2d& a, const vec_2d& b)   { return a.x <= b.x && a.y <= b.y; }
-    bool operator>=(const vec_2d& a, const vec_2d& b)   { return b <= a; }
 
     // CONSTANTS =======================================================================================================
 
@@ -61,9 +47,7 @@ namespace APP::UI::screen_manager {
 
     static std::string                                                      g_current_name;
 
-    static vec_2d                                                           g_touch_min = {};       // -1: not set; 0-100 the coordinate in percent
-
-    static vec_2d                                                           g_touch_max = {};       // -1: not set; 0-100 the coordinate in percent
+    static util::touch_movement_data                                        s_touch_movement{};
 
     static lv_obj_t*                                                        overlay_cont = nullptr;
 
@@ -97,7 +81,7 @@ namespace APP::UI::screen_manager {
 
     static void touch_cb(lv_event_t* e);
 
-    static vec_2d lv_point_to_percent_coordinates(const lv_point_t point);
+    static util::vec_2d lv_point_to_percent_coordinates(const lv_point_t point);
 
     static void create_overlay_if_needed();
     
@@ -169,42 +153,42 @@ namespace APP::UI::screen_manager {
 
         lv_point_t point;
         lv_indev_get_point(indev, &point);                                      // get raw coordinates
-        g_touch_min = g_touch_max = lv_point_to_percent_coordinates(point);     // set min and max to same
+        s_touch_movement = {lv_point_to_percent_coordinates(point)};
     }
 
 
     static void touch_end_cb(lv_event_t* e) {
 
-        constexpr i8 MAX_Y_START = 5;
-        constexpr i8 MIN_Y_HEIGHT = 12;
-        constexpr i8 MAX_Y_HEIGHT = 40;
-        constexpr i8 MAX_X_WIDTH = 40;
+        lv_indev_t* indev = lv_indev_get_act();
+        if (!indev)
+            return;
 
-        const auto path_height = g_touch_max.y - g_touch_min.y;
-        const auto total_path_width = abs(g_touch_min.x - g_touch_max.x);
-        if (total_path_width < MAX_X_WIDTH                                      // not to wide
-            && (path_height > MIN_Y_HEIGHT && path_height < MAX_Y_HEIGHT)       // total path downwards
-            && (g_touch_min.y <= MAX_Y_START)) {                                // path starts in top 10 percent
-            
-            // gesture detected to open the screen selection overlay
-            ESP_LOGI(TAG, "Should open screen selection overlay");
-            show_overlay();
+        lv_point_t point;
+        lv_indev_get_point(indev, &point);
+        s_touch_movement.touch_stop = lv_point_to_percent_coordinates(point);
+
+
+        const util::swipe_direction dir = get_swipe_direction(s_touch_movement);
+        switch (dir) {
+            case util::swipe_direction::down:           ESP_LOGI(TAG, "Swipe Down → open overlay"); show_overlay(); break;
+            case util::swipe_direction::up:             ESP_LOGI(TAG, "Swipe Up → maybe go back"); break;
+            case util::swipe_direction::right:          ESP_LOGI(TAG, "Swipe Right → next item"); break;
+            case util::swipe_direction::left:           ESP_LOGI(TAG, "Swipe Left → previous item"); break;
+            case util::swipe_direction::down_right:     ESP_LOGI(TAG, "Diagonal Down-Right → something"); break;
+            default:                                    break;
         }
-        ESP_LOGI(TAG, "Path height: %d, Path width: %d, Y-start: %d", path_height, total_path_width, g_touch_min.y);
 
         #if USE_ESP_SLEEP_MODE
 
-            if (!s_is_sleeping)
-                start_dim_timer();
-
+            if (!s_is_sleeping) start_dim_timer();
+        
         #else
 
             start_dim_timer();
 
         #endif
-        
-        g_touch_min = {-1, -1};                             // reset buffers
-        g_touch_max = {-1, -1};
+
+        s_touch_movement = {};
     }
 
 
@@ -219,14 +203,13 @@ namespace APP::UI::screen_manager {
 
         const auto current = lv_point_to_percent_coordinates(point);
 
-        if (current.x < g_touch_min.x)      g_touch_min.x = current.x;
-        if (current.y < g_touch_min.y)      g_touch_min.y = current.y;
-        if (current.x > g_touch_max.x)      g_touch_max.x = current.x;
-        if (current.y > g_touch_max.y)      g_touch_max.y = current.y;
+        s_touch_movement.update_min(current);
+        s_touch_movement.update_max(current);
+        s_touch_movement.update_size();
     }
 
 
-    static vec_2d lv_point_to_percent_coordinates(const lv_point_t point) {
+    static util::vec_2d lv_point_to_percent_coordinates(const lv_point_t point) {
 
         // Get display size
         lv_disp_t* disp = lv_disp_get_default();
@@ -235,7 +218,7 @@ namespace APP::UI::screen_manager {
         lv_coord_t hor_res = lv_disp_get_hor_res(disp);
         lv_coord_t ver_res = lv_disp_get_ver_res(disp);
 
-        return vec_2d{
+        return util::vec_2d{
             static_cast<i8>((point.x * 100) / hor_res), 
             static_cast<i8>((point.y * 100) / ver_res) 
         };
