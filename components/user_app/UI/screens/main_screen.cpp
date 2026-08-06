@@ -2,7 +2,10 @@
 #include "util/pch.hpp"
 #include "main_screen.hpp"
 
+#include "user_app.hpp"
+#include "util/system.hpp"
 #include "UI/util.hpp"
+#include "UI/screen_manager.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -23,6 +26,8 @@ namespace APP::UI {
 
     // STATIC VARIABLES ================================================================================================
 
+    APP::clock                                          APP::UI::main_screen::m_clock{};
+
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
@@ -31,38 +36,16 @@ namespace APP::UI {
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
 
-    f32 get_battery_voltage () {
-
-        f32 adc_value;
-        adc_get_value(&adc_value);      // Read the battery voltage
-        return adc_value;
-    }
-
-
-    u8 convert_battery_voltage_to_percent(const f32 voltage) {
-
-        constexpr f32 V_EMPTY = 3.45f;
-        constexpr f32 V_FULL  = 3.82f;
-        f32 percent = (voltage - V_EMPTY) * 100.0f / (V_FULL - V_EMPTY);
-        
-        // if (percent < 0.f)
-        //     percent = 0.f;
-        if (percent > 100.f)
-            percent = 100.f;
-
-        return static_cast<u8>(percent);
-    }
-
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
     // FUNCTION IMPLEMENTATION =========================================================================================
 
     // CLASS IMPLEMENTATION ============================================================================================
 
-    main_screen::main_screen()          = default;
+    main_screen::main_screen()                          = default;
 
 
-    main_screen::~main_screen()         { destroy(); }
+    main_screen::~main_screen()                         { destroy(); }
 
     // CLASS PUBLIC ====================================================================================================
 
@@ -92,17 +75,19 @@ namespace APP::UI {
             lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
         }
 
+        APP::UI::util::create_geometric_pattern_2(scr, highlight_color, support_color);
+
         // Create Hour label
         m_hour_label = lv_label_create(scr);
         lv_obj_set_style_text_color(m_hour_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_hour_label, &inconsolata_regular_128, 0);
+        lv_obj_set_style_text_font(m_hour_label, &wildgrin_152, 0);
         lv_label_set_text(m_hour_label, "00");
         lv_obj_align(m_hour_label, LV_ALIGN_CENTER, 0, -60); // adjust Y offset as needed
 
         // Create Minute label
         m_minute_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_minute_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_minute_label, &inconsolata_regular_128, 0);
+        lv_obj_set_style_text_color(m_minute_label, lv_color_hex(0xAAAAAA), 0);
+        lv_obj_set_style_text_font(m_minute_label, &wildgrin_152, 0);
         lv_label_set_text(m_minute_label, "00");
         lv_obj_align(m_minute_label, LV_ALIGN_CENTER, 0, 60); // adjust Y offset
 
@@ -114,12 +99,27 @@ namespace APP::UI {
         // Align to the right of the minute label
         lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 15, -20);
 
-        // Create Battery label (top right)
-        m_battery_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_battery_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_battery_label, &inconsolata_regular_26, 0);
-        lv_label_set_text(m_battery_label, "0.0V");
-        lv_obj_align(m_battery_label, LV_ALIGN_TOP_RIGHT, -10, 10); // 10px padding
+        // --- Battery indicator (icon + percentage overlay) ---
+        m_battery_cont = lv_obj_create(scr);
+        lv_obj_set_size(m_battery_cont, 60, 60);
+        lv_obj_align(m_battery_cont, LV_ALIGN_TOP_RIGHT, -10, 10);
+        lv_obj_set_style_bg_opa(m_battery_cont, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(m_battery_cont, 0, 0);
+        lv_obj_clear_flag(m_battery_cont, LV_OBJ_FLAG_SCROLLABLE);
+
+        // Battery icon
+        m_battery_icon = lv_label_create(m_battery_cont);
+        lv_obj_set_style_text_color(m_battery_icon, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_battery_icon, &awesome_5_regular_42, 0);
+        lv_label_set_text(m_battery_icon, LV_SYMBOL_BATTERY_FULL);
+        lv_obj_align(m_battery_icon, LV_ALIGN_CENTER, 0, 0);
+
+        // Percentage overlay – smaller, bold, centered on top
+        m_battery_pct_label = lv_label_create(m_battery_cont);
+        lv_obj_set_style_text_color(m_battery_pct_label, support_color, 0);
+        lv_obj_set_style_text_font(m_battery_pct_label, &inconsolata_extra_bold_14, 0);
+        lv_label_set_text(m_battery_pct_label, "0%");
+        lv_obj_align(m_battery_pct_label, LV_ALIGN_CENTER, 0, 2);
 
         update_clock();                     // Update all labels immediately
         start_clock();                      // Start the timer to update every second
@@ -128,23 +128,26 @@ namespace APP::UI {
     }
 
 
-    void main_screen::show()            { lv_obj_clear_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
+    void main_screen::show()                            { lv_obj_clear_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
 
 
-    void main_screen::hide()            { lv_obj_add_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
+    void main_screen::hide()                            { lv_obj_add_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
 
 
     // LVGL objects are usually automatically freed when the screen is deleted,
     // but we could call lv_obj_del(m_ui.screen) if needed.
     // For now, we just clear the pointer.
-    void main_screen::destroy()         { }
+    void main_screen::destroy()                         { }
 
 
-    lv_obj_t* main_screen::get_root()   { return m_ui.screen; }
+    lv_obj_t* main_screen::get_root()                   { return m_ui.screen; }
 
 
     // No longer handles any events – all navigation is done by screen_manager.
-    bool main_screen::handle_event(lv_event_t* e)   { return false; }
+    bool main_screen::handle_event(lv_event_t* e)       { return false; }
+
+
+    void main_screen::set_clock(const APP::clock time)  { m_clock = time; }
 
     // CLASS PROTECTED =================================================================================================
 
@@ -199,27 +202,35 @@ namespace APP::UI {
         if (m_minute_label) lv_label_set_text(m_minute_label, min_str);
         if (m_second_label) lv_label_set_text(m_second_label, sec_str);
 
-        // Get raw percentage
-        const u8 raw = convert_battery_voltage_to_percent(get_battery_voltage());
 
-        // Store in buffer
-        m_battery_buffer[m_battery_index] = raw;
+        const u8 raw = APP::system::get_battery_voltage_in_percent();       // Get raw percentage
+
+        m_battery_buffer[m_battery_index] = raw;                            // Store in buffer
         m_battery_index = (m_battery_index + 1) % BATTERY_BUFFER_SIZE;
         if (m_battery_count < BATTERY_BUFFER_SIZE) 
             m_battery_count++;
 
-        // Compute average over available readings
-        u16 sum = 0;
+        u16 sum = 0;                                                        // Compute average over available readings
         for (u8 i = 0; i < m_battery_count; i++)
             sum += m_battery_buffer[i];
-
-        // Display the averaged percentage
+        
+        // Determine battery icon based on percentage
         const i16 avg = sum / m_battery_count;
-        char volt_str[12];
-        snprintf(volt_str, sizeof(volt_str), "%.2fV %d%%", get_battery_voltage(), avg);
-        // snprintf(volt_str, sizeof(volt_str), "%d%%", avg);
-        if (m_battery_label)
-            lv_label_set_text(m_battery_label, volt_str);
+        const char* battery_symbol;
+        if (avg >= 80)          battery_symbol = LV_SYMBOL_BATTERY_FULL;
+        else if (avg >= 60)     battery_symbol = LV_SYMBOL_BATTERY_3;
+        else if (avg >= 40)     battery_symbol = LV_SYMBOL_BATTERY_2;
+        else if (avg >= 20)     battery_symbol = LV_SYMBOL_BATTERY_1;
+        else                    battery_symbol = LV_SYMBOL_BATTERY_EMPTY;
+        
+        if (m_battery_icon)
+            lv_label_set_text(m_battery_icon, battery_symbol);
+        
+        // Update percentage overlay
+        char pct_str[6];
+        snprintf(pct_str, sizeof(pct_str), "%d%%", avg);
+        if (m_battery_pct_label)
+            lv_label_set_text(m_battery_pct_label, pct_str);
     }
 
 }

@@ -1,26 +1,11 @@
 
 #include "util/pch.hpp"
-#include "user_app.hpp"
-
-#include "util/system.hpp"
-#include "UI/screen_manager.hpp"
-#include "UI/screens/main_screen.hpp"
-#include "UI/screens/wifi_screen.hpp"
-#include "UI/screens/bluetooth_screen.hpp"
-#include "UI/screens/settings_screen.hpp"
+#include "bluetooth.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
 
-EventGroupHandle_t      TaskEven;
-
-// STATIC VARIABLES ====================================================================================================
-
-lv_color_t                  highlight_color = lv_color_hex(0x1940ff);
-
-lv_color_t                  support_color   = lv_color_hex(0x3f60ff);
-
-namespace APP {
+namespace APP::util::bluetooth {
 
     // TYPES ===========================================================================================================
 
@@ -41,25 +26,6 @@ namespace APP {
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
     // FUNCTION IMPLEMENTATION =========================================================================================
-
-    extern "C" void application_begin(void) {
-
-        TaskEven = xEventGroupCreate();
-        xEventGroupSetBits( TaskEven,(0x01<<2) ); //wifi
-        xEventGroupSetBits( TaskEven,(0x01<<1) ); //ble
-        SD_card_Init();
-        nvs_flash_Init();
-        ble_scan_class_init();
-        ble_scan_Init();
-
-        APP::system::init();
-        APP::UI::screen_manager::init();
-        APP::UI::screen_manager::register_screen("main", std::move(std::make_unique<APP::UI::main_screen>()));
-        APP::UI::screen_manager::register_screen("wifi", std::move(std::make_unique<APP::UI::wifi_screen>()));
-        APP::UI::screen_manager::register_screen("bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
-        APP::UI::screen_manager::register_screen("settings", std::move(std::make_unique<APP::UI::settings_screen>()));
-        APP::UI::screen_manager::switch_to("bluetooth");
-    }
 
     // CLASS IMPLEMENTATION ============================================================================================
 

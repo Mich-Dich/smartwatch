@@ -69,6 +69,10 @@ static bool                             s_advertising = false;        // adverti
 static bool                             s_adv_config_pending = false; // waiting for config complete
 static esp_ble_adv_params_t             s_adv_params;                 // stored params
 static uint16_t                         s_service_uuid;   // persistent storage for advertising service UUID
+static uint16_t                         s_conn_id = 0;
+static uint16_t                         s_gattc_if = ESP_GATT_IF_NONE;
+static esp_bd_addr_t                    s_connected_bda = {0};
+static bool                             s_connected = false;
 
 // Pending advertising request (if scanning needs to be stopped first)
 static struct {
@@ -145,6 +149,7 @@ static void start_advertising_internal(const char* name, uint16_t service_uuid) 
 
 
 static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* param) {
+    
     switch (event) {
         case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
             break;
@@ -162,12 +167,16 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* par
         case ESP_GAP_BLE_SCAN_RESULT_EVT: {
             esp_ble_gap_cb_param_t *scan_result = (esp_ble_gap_cb_param_t *)param;
             switch (scan_result->scan_rst.search_evt) {
+
                 case ESP_GAP_SEARCH_INQ_RES_EVT: {
                     ble_device_t dev;
                     memcpy(dev.bda, scan_result->scan_rst.bda, 6);
                     dev.name[0] = '\0';
                     uint8_t name_len = 0;
-                    uint8_t* name_ptr = esp_ble_resolve_adv_data(
+                    uint8_t* name_ptr = NULL;
+
+                    // Try complete name, then short name from advertising data
+                    name_ptr = esp_ble_resolve_adv_data(
                         scan_result->scan_rst.ble_adv,
                         ESP_BLE_AD_TYPE_NAME_CMPL,
                         &name_len
@@ -179,20 +188,28 @@ static void esp_gap_cb(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t* par
                             &name_len
                         );
                     }
+
                     if (name_ptr && name_len > 0) {
                         size_t copy_len = (name_len < BLE_NAME_MAX_LEN - 1) ? name_len : BLE_NAME_MAX_LEN - 1;
                         memcpy(dev.name, name_ptr, copy_len);
                         dev.name[copy_len] = '\0';
                     }
+
                     if (xQueueSend(ble_Queue, &dev, 0) == pdTRUE) {
                         // item sent
                     }
+
+                    ESP_LOGI("SCAN", "Device found, MAC %02x:%02x:%02x:%02x:%02x:%02x, name: %s",
+                        dev.bda[0], dev.bda[1], dev.bda[2], dev.bda[3], dev.bda[4], dev.bda[5],
+                        dev.name[0] ? dev.name : "(none)");
                     break;
                 }
+
                 case ESP_GAP_SEARCH_INQ_CMPL_EVT:
                     s_scanning = false;
                     ESP_LOGI(GATTC_TAG, "Scan finished naturally");
                     break;
+
                 default:
                     break;
             }
@@ -305,6 +322,35 @@ static void gattc_profile_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
             ESP_LOGI(GATTC_TAG, "ESP_GATTC_CFG_MTU_EVT, Status %d, MTU %d, conn_id %d", param->cfg_mtu.status, param->cfg_mtu.mtu, param->cfg_mtu.conn_id);
             break;
 
+        case ESP_GATTC_OPEN_EVT:
+            if (param->open.status != ESP_GATT_OK) {
+                ESP_LOGE(GATTC_TAG, "Open failed, status %d", param->open.status);
+                break;
+            }
+            s_conn_id = param->open.conn_id;
+            ESP_LOGI(GATTC_TAG, "Connection open, conn_id %d", s_conn_id);
+            // Optionally set MTU
+            esp_ble_gattc_send_mtu_req(gattc_if, s_conn_id);
+            break;
+
+        case ESP_GATTC_CONNECT_EVT:
+            s_connected = true;
+            ESP_LOGI(GATTC_TAG, "Connected to " ESP_BD_ADDR_STR, ESP_BD_ADDR_HEX(param->connect.remote_bda));
+            // You may want to start service discovery here
+            // esp_ble_gattc_search_service(gattc_if, s_conn_id, NULL);
+            break;
+
+        case ESP_GATTC_DISCONNECT_EVT:
+            s_connected = false;
+            s_conn_id = 0;
+            ESP_LOGI(GATTC_TAG, "Disconnected");
+            break;
+
+        case ESP_GATTC_SEARCH_CMPL_EVT:
+            // Service discovery completed – you can now read/write characteristics
+            ESP_LOGI(GATTC_TAG, "Service search complete");
+            break;
+            
         default:
             break;
     }
@@ -328,6 +374,8 @@ void ble_scan_class_init(void) {
 
 
 void ble_scan_Init(void) {
+
+    ble_scan_class_init(); 
     esp_err_t ret;
     esp_bt_controller_config_t bt_cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
     ret = esp_bt_controller_init(&bt_cfg);
@@ -391,6 +439,44 @@ void ble_scan_Deinit(void) {
     esp_bt_controller_disable();
     esp_bt_controller_deinit();
 }
+
+
+esp_err_t ble_connect_to_device(uint8_t *bda) {
+
+    if (s_scanning) {
+
+        ESP_LOGW(GATTC_TAG, "Scanning active, stop first");
+        esp_ble_gap_stop_scanning();
+        // Optionally wait for stop event, but for simplicity we can try anyway
+    }
+
+    // Use the registered GATT interface
+    if (gl_profile_tab[PROFILE_A_APP_ID].gattc_if == ESP_GATT_IF_NONE) {
+
+        ESP_LOGE(GATTC_TAG, "GATT client not registered");
+        return ESP_ERR_INVALID_STATE;
+    }
+    esp_err_t ret = esp_ble_gattc_open(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, 
+        bda, BLE_ADDR_TYPE_PUBLIC, true);  // direct connection
+
+    if (ret == ESP_OK) {
+        memcpy(s_connected_bda, bda, 6);
+        ESP_LOGI(GATTC_TAG, "Connection attempt to " ESP_BD_ADDR_STR, ESP_BD_ADDR_HEX(bda));
+    }
+    return ret;
+}
+
+
+esp_err_t ble_disconnect(void) {
+
+    if (!s_connected)
+        return ESP_ERR_INVALID_STATE;
+
+    return esp_ble_gattc_close(gl_profile_tab[PROFILE_A_APP_ID].gattc_if, s_conn_id);
+}
+
+
+bool ble_is_connected(void)         { return s_connected; }
 
 
 void ble_advertising_start(const char* name, uint16_t service_uuid) {

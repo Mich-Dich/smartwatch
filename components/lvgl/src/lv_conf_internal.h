@@ -1216,7 +1216,7 @@
     #ifdef CONFIG_LV_FONT_FMT_TXT_LARGE
         #define LV_FONT_FMT_TXT_LARGE CONFIG_LV_FONT_FMT_TXT_LARGE
     #else
-        #define LV_FONT_FMT_TXT_LARGE 0
+        #define LV_FONT_FMT_TXT_LARGE 1
     #endif
 #endif
 

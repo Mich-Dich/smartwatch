@@ -109,11 +109,25 @@ namespace APP::UI::util {
     // @param screen  The LVGL screen object to style.
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
     // @param color2  Secondary color (used for strokes, e.g. white/cyan).
-    void create_geometric_pattern(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+    void create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+    
+    
+    // @brief Create a black background with a geometric pattern drawn in two colors.
+    // @param screen  The LVGL screen object to style.
+    // @param color1  Primary color (used for fills, e.g. dark grey/blue).
+    // @param color2  Secondary color (used for strokes, e.g. white/cyan).
+    void create_geometric_pattern_1(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+
+
+    // @brief Create a black background with a geometric pattern drawn in two colors.
+    // @param screen  The LVGL screen object to style.
+    // @param color1  Primary color (used for fills, e.g. dark grey/blue).
+    // @param color2  Secondary color (used for strokes, e.g. white/cyan).
+    void create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
     swipe_direction get_swipe_direction(const touch_movement_data& data);
-
+    
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================

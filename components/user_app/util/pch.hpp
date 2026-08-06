@@ -35,7 +35,6 @@
     #include "esp_sleep.h"          // for light sleep
     #include "driver/gpio.h"
     
-    #include "adc_bsp.h"
     #include "ble_scan_bsp.h"
     #include "sd_card_bsp.h"
     #include "lvgl.h"
@@ -52,6 +51,8 @@
 
 // FORWARD DECLARATIONS =====================================================================================
 
+extern const lv_font_t                  inconsolata_extra_bold_14;
+
 extern const lv_font_t                  inconsolata_regular_26;
 
 extern const lv_font_t                  inconsolata_regular_48;
@@ -61,6 +62,12 @@ extern const lv_font_t                  inconsolata_regular_64;
 extern const lv_font_t                  inconsolata_regular_128;
 
 extern const lv_font_t                  lv_font_montserrat_24;
+
+extern const lv_font_t                  wildgrin_152;
+
+extern const lv_font_t                  awesome_5_regular_26;
+
+extern const lv_font_t                  awesome_5_regular_42;
 
 // TYPES ====================================================================================================
 
@@ -144,11 +151,11 @@ extern const lv_font_t                  lv_font_montserrat_24;
 
     #define DEFAULT_GETTER_POINTER(type, name)		        FORCE_INLINE_R type* get_##name##_pointer() { return &m_##name; }
 
-    #define DEFAULT_GETTERS(type, name)				        DEFAULT_GETTER(type, name)					                \
-                                                            DEFAULT_GETTER_REF(type, name)					            \
+    #define DEFAULT_GETTERS(type, name)				        DEFAULT_GETTER(type, name)					    \
+                                                            DEFAULT_GETTER_REF(type, name)					\
                                                             DEFAULT_GETTER_POINTER(type, name)
 
-    #define DEFAULT_GETTERS_C(type, name)			        DEFAULT_GETTER_C(type, name)			                    \
+    #define DEFAULT_GETTERS_C(type, name)			        DEFAULT_GETTER_C(type, name)			        \
                                                             DEFAULT_GETTER_POINTER(type, name)
 
     #define GETTER(type, func_name, var_name)		        FORCE_INLINE_R type get_##func_name() { return var_name; }
@@ -165,27 +172,23 @@ extern const lv_font_t                  lv_font_montserrat_24;
 
     // both together ----------------------------------------------------------------------------------------
 
-    #define DEFAULT_GETTER_SETTER(type, name)				DEFAULT_GETTER(type, name)				                    \
+    #define DEFAULT_GETTER_SETTER(type, name)				DEFAULT_GETTER(type, name)				        \
                                                             DEFAULT_SETTER(type, name)
 
-    #define DEFAULT_GETTER_SETTER_C(type, name)				DEFAULT_GETTER_C(type, name)			                    \
+    #define DEFAULT_GETTER_SETTER_C(type, name)				DEFAULT_GETTER_C(type, name)			        \
                                                             DEFAULT_SETTER(type, name)
 
-    #define DEFAULT_GETTER_SETTER_ALL(type, name)			DEFAULT_SETTER(type, name)				                    \
-                                                            DEFAULT_GETTER(type, name)				                    \
+    #define DEFAULT_GETTER_SETTER_ALL(type, name)			DEFAULT_SETTER(type, name)				        \
+                                                            DEFAULT_GETTER(type, name)				        \
                                                             DEFAULT_GETTER_POINTER(type, name)
 
-    #define GETTER_SETTER(type, func_name, var_name)		GETTER(type, func_name, var_name)		                    \
+    #define GETTER_SETTER(type, func_name, var_name)		GETTER(type, func_name, var_name)		        \
                                                             SETTER(type, func_name, var_name)
 
-    #define GETTER_SETTER_C(type, func_name, var_name)		GETTER_C(type, func_name, var_name)	                        \
+    #define GETTER_SETTER_C(type, func_name, var_name)		GETTER_C(type, func_name, var_name)	            \
                                                             SETTER(type, func_name, var_name)
 
     // STATIC VARIABLES =====================================================================================
-
-    const inline lv_color_t highlight_color = lv_color_hex(0x1940ff);
-
-    const inline lv_color_t support_color   = lv_color_hex(0x3f60ff);
 
     // FUNCTION DECLARATION =================================================================================
 

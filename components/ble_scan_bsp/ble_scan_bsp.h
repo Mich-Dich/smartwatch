@@ -18,7 +18,7 @@ extern QueueHandle_t ble_Queue;
 
 // CONSTANTS ================================================================================================
 
-#define BLE_NAME_MAX_LEN    32
+#define BLE_NAME_MAX_LEN    64
 
 // MACROS ===================================================================================================
 
@@ -43,6 +43,12 @@ void ble_scan_Init(void);
 void ble_scan_setconf(void);
 
 void ble_scan_Deinit(void);
+
+esp_err_t ble_connect_to_device(uint8_t* bda);
+
+esp_err_t ble_disconnect(void);
+
+bool ble_is_connected(void);
 
 void ble_advertising_start(const char* name, uint16_t service_uuid);
 

@@ -39,3 +39,15 @@ clear; idf.py build && idf.py flash monitor
   - Bpp: 2 bit-per-pixel
   - Output format: C file
   - Range: 0x20-0x7F, 0xB0, 0x2022
+    (For Icons: 0xF000-0xF8FF)
+
+
+
+
+
+
+
+# TODO: 
+- save brightness to non-volatile memory (for rebooting/powerless/...)
+- add Bluetooth/Wifi power-saving functions (Need to figure out how to ensure bluetooth remains active if music screen running)
+- detect Powering by cable (reenable screen)

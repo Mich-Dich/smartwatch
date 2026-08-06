@@ -32,23 +32,28 @@ namespace APP::UI {
         ~main_screen();
 
         void init() override;
-        
+
         void show() override;
-        
+
         void hide() override;
-        
+
         void destroy() override;
-        
+
         lv_obj_t* get_root() override;
 
         // Event callback for this screen's widgets
         bool handle_event(lv_event_t* e) override;
 
+        static void set_clock(const APP::clock time);
+
     private:
-    
+
         void start_clock();
-        
+
         void update_clock();
+
+        void draw_decorations(lv_obj_t* parent);
+
 
         lv_ui                   m_ui;
         lv_obj_t*               m_hour_label   = nullptr;
@@ -56,9 +61,12 @@ namespace APP::UI {
         lv_obj_t*               m_second_label = nullptr;
         lv_obj_t*               m_battery_label = nullptr;
         lv_obj_t*               m_time_label = nullptr; 
+        lv_obj_t*               m_battery_cont = nullptr;       // container for battery icon + percentage
+        lv_obj_t*               m_battery_icon = nullptr;       // the battery symbol label
+        lv_obj_t*               m_battery_pct_label = nullptr;  // percentage text overlay
 
-        APP::clock              m_clock{};
-        static constexpr u8     BATTERY_BUFFER_SIZE = 5;   // window size
+        static APP::clock       m_clock;
+        static constexpr u8     BATTERY_BUFFER_SIZE = 5;
         u8                      m_battery_buffer[BATTERY_BUFFER_SIZE] = {0};
         u8                      m_battery_index = 0;
         u8                      m_battery_count = 0;

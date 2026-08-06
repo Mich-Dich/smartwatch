@@ -3,7 +3,7 @@ file(GLOB_RECURSE APP_SOURCES "*.cpp")
 
 idf_component_register(
     SRCS ${APP_SOURCES}
-    PRIV_REQUIRES sd_card_bsp lvgl ui_bsp adc_bsp esp_wifi_bsp ble_scan_bsp qmi8658c
+    PRIV_REQUIRES esp_adc sd_card_bsp lvgl ui_bsp esp_wifi_bsp ble_scan_bsp qmi8658c
     INCLUDE_DIRS    "./"    # root of component
 )
 
@@ -22,8 +22,12 @@ target_precompile_headers(${COMPONENT_LIB}      PRIVATE
 )
 
 target_sources(${COMPONENT_LIB}                 PRIVATE 
+    "font/inconsolata_extra_bold_14.c"
     "font/inconsolata_regular_26.c"
     "font/inconsolata_regular_48.c"
     "font/inconsolata_regular_64.c"
     "font/inconsolata_regular_128.c"
+    "font/awesome_5_regular_26.c"
+    "font/awesome_5_regular_42.c"
+    "font/wildgrin_152.c"
 )

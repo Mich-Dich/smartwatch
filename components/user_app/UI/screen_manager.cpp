@@ -1,11 +1,13 @@
 #include "util/pch.hpp"
 #include "screen_manager.hpp"
 
+#include "user_app.hpp"
+#include "util/system.hpp"
 #include "UI/util.hpp"
 
 
 
-#define USE_ESP_SLEEP_MODE          1
+#define USE_ESP_SLEEP_MODE                                                  1
 
 // FORWARD DECLARATIONS ================================================================================================
 
@@ -33,7 +35,7 @@ namespace APP::UI::screen_manager {
 
     #if USE_ESP_SLEEP_MODE
 
-        #define TOUCH_INT_GPIO                                              GPIO_NUM_27       // e.g., GPIO 27
+        #define TOUCH_INT_GPIO                                              GPIO_NUM_5
 
         #define TOUCH_INT_ACTIVE_LOW                                        1               // 1 if active low (0 = active high)
 
@@ -41,21 +43,23 @@ namespace APP::UI::screen_manager {
 
     // STATIC VARIABLES ================================================================================================
 
-    static std::vector<std::pair<std::string, std::unique_ptr<screen>>>     g_ordered_screens{};
+    static std::vector<std::pair<std::string, std::unique_ptr<screen>>>     s_ordered_screens{};
 
-    static screen*                                                          g_current = nullptr;
+    static screen*                                                          s_current = nullptr;
 
-    static std::string                                                      g_current_name;
+    static std::string                                                      s_current_name;
 
     static util::touch_movement_data                                        s_touch_movement{};
 
-    static lv_obj_t*                                                        overlay_cont = nullptr;
+    static lv_obj_t*                                                        s_overlay_cont = nullptr;
 
-    static lv_obj_t*                                                        overlay_list = nullptr;
+    static lv_obj_t*                                                        s_overlay_list = nullptr;
 
-    static bool                                                             overlay_shown = false;
+    static bool                                                             s_overlay_shown = false;
 
     static esp_timer_handle_t                                               s_dim_timer = nullptr;
+    
+    static esp_timer_handle_t                                               s_full_second_timer = nullptr;
 
     static bool                                                             s_is_dimmed = false;
 
@@ -69,11 +73,23 @@ namespace APP::UI::screen_manager {
 
     static uint8_t                                                          s_previous_brightness = 255;
 
+    static std::vector<callback_func>                                       s_sleep_callbacks{};
+
+    static std::vector<callback_func>                                       s_wake_callbacks{};
+
+    static volatile bool                                                    s_charger_connected = false;
+
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
 
     static int find_index(const std::string& name);
+
+    static void wake_system_event();
+
+    static void rearm_sleep_system();
+
+    static void full_second_cb(void* arg);
 
     static void touch_begin_cb(lv_event_t* e);
 
@@ -115,15 +131,15 @@ namespace APP::UI::screen_manager {
 
     static int find_index(const std::string& name) {
 
-        for (size_t i = 0; i < g_ordered_screens.size(); ++i)
-            if (g_ordered_screens[i].first == name)
+        for (size_t i = 0; i < s_ordered_screens.size(); ++i)
+            if (s_ordered_screens[i].first == name)
                 return static_cast<int>(i);
         
         return -1;
     }
 
 
-    static void touch_begin_cb(lv_event_t* e) {
+    static void wake_system_event() {
 
         #if USE_ESP_SLEEP_MODE
 
@@ -146,7 +162,53 @@ namespace APP::UI::screen_manager {
             stop_sleep_timer();
 
         #endif
+    }
+
+
+    static void rearm_sleep_system() {
+
+        #if USE_ESP_SLEEP_MODE
+
+            if (!s_is_sleeping) 
+                start_dim_timer();
         
+        #else
+
+            start_dim_timer();
+
+        #endif
+    }
+
+
+    static void full_second_cb(void* arg) {
+        
+        constexpr f32 CONNECTED_POWER_DIFFERENCE = 0.30f;                           // quick change in 1s
+        static f32 previous_voltage = 0;
+        const f32 current_voltage = APP::system::get_battery_voltage();
+
+        if (current_voltage > (previous_voltage + CONNECTED_POWER_DIFFERENCE)) {    // power cable connected
+            
+            wake_system_event();
+            rearm_sleep_system();
+            s_charger_connected = true;
+        }
+        
+        if (current_voltage < (previous_voltage - CONNECTED_POWER_DIFFERENCE)) {    // power cable disconnected
+            
+            wake_system_event();
+            rearm_sleep_system();
+            s_charger_connected = false;
+        }
+
+        // ESP_LOGI(TAG, "previous: %.2f, current: %.2f", previous_voltage, current_voltage);
+        previous_voltage = current_voltage;
+    }
+
+
+    static void touch_begin_cb(lv_event_t* e) {
+
+        wake_system_event();
+
         lv_indev_t* indev = lv_indev_get_act();
         if (!indev) 
             return;
@@ -167,27 +229,10 @@ namespace APP::UI::screen_manager {
         lv_indev_get_point(indev, &point);
         s_touch_movement.touch_stop = lv_point_to_percent_coordinates(point);
 
+        if (util::swipe_direction::down == get_swipe_direction(s_touch_movement))
+            show_overlay();
 
-        const util::swipe_direction dir = get_swipe_direction(s_touch_movement);
-        switch (dir) {
-            case util::swipe_direction::down:           ESP_LOGI(TAG, "Swipe Down → open overlay"); show_overlay(); break;
-            case util::swipe_direction::up:             ESP_LOGI(TAG, "Swipe Up → maybe go back"); break;
-            case util::swipe_direction::right:          ESP_LOGI(TAG, "Swipe Right → next item"); break;
-            case util::swipe_direction::left:           ESP_LOGI(TAG, "Swipe Left → previous item"); break;
-            case util::swipe_direction::down_right:     ESP_LOGI(TAG, "Diagonal Down-Right → something"); break;
-            default:                                    break;
-        }
-
-        #if USE_ESP_SLEEP_MODE
-
-            if (!s_is_sleeping) start_dim_timer();
-        
-        #else
-
-            start_dim_timer();
-
-        #endif
-
+        rearm_sleep_system();
         s_touch_movement = {};
     }
 
@@ -227,26 +272,26 @@ namespace APP::UI::screen_manager {
 
     static void create_overlay_if_needed() {
 
-        if (overlay_cont) 
+        if (s_overlay_cont) 
             return;
 
         // Full‑screen container with dimmed background
-        overlay_cont = lv_obj_create(lv_layer_top());
-        lv_obj_set_size(overlay_cont, LV_PCT(100), LV_PCT(100));
-        lv_obj_set_style_bg_color(overlay_cont, lv_color_hex(0x000000), 0);
-        lv_obj_set_style_bg_opa(overlay_cont, LV_OPA_60, 0);
-        lv_obj_clear_flag(overlay_cont, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_add_flag(overlay_cont, LV_OBJ_FLAG_CLICKABLE);
+        s_overlay_cont = lv_obj_create(lv_layer_top());
+        lv_obj_set_size(s_overlay_cont, LV_PCT(100), LV_PCT(100));
+        lv_obj_set_style_bg_color(s_overlay_cont, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(s_overlay_cont, LV_OPA_60, 0);
+        lv_obj_clear_flag(s_overlay_cont, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_flag(s_overlay_cont, LV_OBJ_FLAG_CLICKABLE);
 
         // Close when tapping outside the panel
-        lv_obj_add_event_cb(overlay_cont, [](lv_event_t* e) {
-            if (lv_event_get_target(e) == overlay_cont) {
+        lv_obj_add_event_cb(s_overlay_cont, [](lv_event_t* e) {
+            if (lv_event_get_target(e) == s_overlay_cont) {
                 hide_overlay();
             }
         }, LV_EVENT_CLICKED, nullptr);
 
         // Panel – full width, top‑aligned, rounded bottom corners
-        lv_obj_t* panel = lv_obj_create(overlay_cont);
+        lv_obj_t* panel = lv_obj_create(s_overlay_cont);
         lv_obj_set_size(panel, LV_PCT(100), LV_PCT(55));   // 55% of screen height
         lv_obj_align(panel, LV_ALIGN_TOP_MID, 0, 0);
         lv_obj_set_style_radius(panel, 20, 0);             // rounded all corners
@@ -266,30 +311,30 @@ namespace APP::UI::screen_manager {
         lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 20);
 
         // List container – fills remaining space
-        overlay_list = lv_list_create(panel);
-        lv_obj_set_size(overlay_list, LV_PCT(90), LV_PCT(70)); // adjust to fit
-        lv_obj_align(overlay_list, LV_ALIGN_CENTER, 0, 10);
-        lv_obj_set_style_bg_color(overlay_list, lv_color_hex(0x000000), 0);
-        lv_obj_set_style_bg_opa(overlay_list, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(overlay_list, 0, 0);
-        lv_obj_set_style_pad_row(overlay_list, 4, 0);
+        s_overlay_list = lv_list_create(panel);
+        lv_obj_set_size(s_overlay_list, LV_PCT(90), LV_PCT(70)); // adjust to fit
+        lv_obj_align(s_overlay_list, LV_ALIGN_CENTER, 0, 10);
+        lv_obj_set_style_bg_color(s_overlay_list, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(s_overlay_list, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(s_overlay_list, 0, 0);
+        lv_obj_set_style_pad_row(s_overlay_list, 4, 0);
 
         // Start hidden
-        lv_obj_add_flag(overlay_cont, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(s_overlay_cont, LV_OBJ_FLAG_HIDDEN);
     }
 
 
     static void show_overlay() {
 
-        if (!overlay_cont)
+        if (!s_overlay_cont)
             create_overlay_if_needed();
 
         // Clear and repopulate
-        lv_obj_clean(overlay_list);
+        lv_obj_clean(s_overlay_list);
 
-        for (const auto& pair : g_ordered_screens) {
+        for (const auto& pair : s_ordered_screens) {
             const std::string& name = pair.first;
-            lv_obj_t* btn = lv_list_add_btn(overlay_list, nullptr, name.c_str());
+            lv_obj_t* btn = lv_list_add_btn(s_overlay_list, nullptr, name.c_str());
 
             // Modern button styling
             lv_obj_set_style_bg_color(btn, lv_color_hex(0x000000), 0);
@@ -328,30 +373,30 @@ namespace APP::UI::screen_manager {
         }
 
         // Show overlay with a slide‑down animation (optional)
-        lv_obj_clear_flag(overlay_cont, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_move_foreground(overlay_cont);
+        lv_obj_clear_flag(s_overlay_cont, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(s_overlay_cont);
 
         // Optional animation: slide from top
         lv_anim_t a;
         lv_anim_init(&a);
-        lv_anim_set_var(&a, overlay_cont);
+        lv_anim_set_var(&a, s_overlay_cont);
         lv_anim_set_exec_cb(&a, [](void* var, int32_t val) {
             lv_obj_set_y((lv_obj_t*)var, val);
         });
-        lv_anim_set_values(&a, -lv_obj_get_height(overlay_cont), 0);
+        lv_anim_set_values(&a, -lv_obj_get_height(s_overlay_cont), 0);
         lv_anim_set_time(&a, 300);
         lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
         lv_anim_start(&a);
 
-        overlay_shown = true;
+        s_overlay_shown = true;
     }
 
     
     static void hide_overlay() {
 
-        if (overlay_cont) {
-            lv_obj_add_flag(overlay_cont, LV_OBJ_FLAG_HIDDEN);
-            overlay_shown = false;
+        if (s_overlay_cont) {
+            lv_obj_add_flag(s_overlay_cont, LV_OBJ_FLAG_HIDDEN);
+            s_overlay_shown = false;
         }
     }
     
@@ -417,6 +462,7 @@ namespace APP::UI::screen_manager {
                 esp_timer_stop(s_sleep_timer);
         }
 
+
         static void start_sleep_timer() {
 
             if (s_sleep_timer == nullptr) {
@@ -435,64 +481,66 @@ namespace APP::UI::screen_manager {
 
         static void enter_low_power_mode() {
 
-            // Turn off the display (optional – may be handled by setBrightens(0))
-            setBrightens(0);
+            setBrightens(0);   // turn off backlight
 
-            // // Configure the touch interrupt GPIO for wake-up
-            // gpio_config_t io_conf = {
-            //     .pin_bit_mask = (1ULL << TOUCH_INT_GPIO),
-            //     .mode = GPIO_MODE_INPUT,
-            //     .pull_up_en = GPIO_PULLUP_ENABLE,    // Most touch interrupts are open-drain, so pull-up is needed
-            //     .pull_down_en = GPIO_PULLDOWN_DISABLE,
-            //     .intr_type = GPIO_INTR_DISABLE       // We only use it for wake, not for normal interrupts
-            // };
-            // gpio_config(&io_conf);
+            ESP_LOGI(TAG, "Executing [%zu] registered functions %d", s_sleep_callbacks.size());
+            for (auto callback : s_sleep_callbacks)      // execute the registered callbacks
+                if (callback)
+                    callback();
 
-            // // Enable wake-up on the GPIO level (choose the level that triggers the interrupt)
-            // // If active low, wake when pin is LOW (0)
-            // // If active high, wake when pin is HIGH (1)
+            // // Use the already configured GPIO as wake‑up source
             // #if TOUCH_INT_ACTIVE_LOW
-            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 0);   // wake on LOW
+            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 0);
             // #else
-            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 1);   // wake on HIGH
+            //     esp_sleep_enable_ext0_wakeup(TOUCH_INT_GPIO, 1);
             // #endif
-
-            // // Optionally, keep RTC peripherals powered if needed
-            // // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_SLOW_MEM, ESP_PD_OPTION_ON);
 
             // ESP_LOGI(TAG, "Entering light sleep, wake on GPIO %d", TOUCH_INT_GPIO);
             // s_is_sleeping = true;
 
-            // // Enter light sleep
-            // esp_light_sleep_start();
+            // // Enter light sleep – execution will stop here until a touch occurs
+            // esp_err_t err = esp_light_sleep_start();
+            // if (err != ESP_OK) {
+            //     ESP_LOGE(TAG, "Light sleep failed: %s", esp_err_to_name(err));
+            //     s_is_sleeping = false;
+            //     // Optionally retry or fallback
+            // }
 
-            // // ---- Execution resumes here after wake-up ----
-            // // The touch interrupt has woken us, but the interrupt line might still be asserted.
-            // // We must clear it by reading the touch data (done in exit_low_power_mode).
+            // If sleep was successful, we will resume here after wake.
+            // If it failed, we also resume here and must restore state.
         }
+
 
         static void exit_low_power_mode() {
 
-            // Re-enable the display and restore previous brightness
+            // Restore brightness and flags
             setBrightens(s_previous_brightness);
             s_is_dimmed = false;
             s_is_sleeping = false;
 
-            // // Clear the touch interrupt by reading the touch status.
-            // // This is critical: the touch controller keeps the INT pin low until we read the touch data.
-            // // If you are using LVGL, call its touch driver read function.
-            // // Example (if you have a function like touch_driver_read()):
-            // // touch_driver_read();
-            // // Or call the LVGL input device's read_cb:
-            // // lv_indev_data_t data;
-            // // lv_indev_get_drv(lv_indev_get_next(NULL))->read_cb(NULL, &data);
-            // // Since we don't have the exact driver, we'll just log a warning.
-            // ESP_LOGW(TAG, "Please clear the touch interrupt by reading touch data");
+            // // Clear the touch interrupt by reading touch data.
+            // // This is critical: without this, the interrupt pin stays low/high
+            // // and we might wake again immediately.
+            // lv_indev_t* indev = lv_indev_get_next(NULL);
+            // while (indev) {
+            //     // If this is your touch input device, call its read callback
+            //     if (lv_indev_get_type(indev) == LV_INDEV_TYPE_POINTER) {
+            //         lv_indev_data_t data;
+            //         if (indev->driver->read_cb) {
+            //             indev->driver->read_cb(indev->driver, &data);
+            //             // The read_cb should clear the interrupt on the touch IC
+            //         }
+            //         break;
+            //     }
+            //     indev = lv_indev_get_next(indev);
+            // }
+            
+            ESP_LOGI(TAG, "Executing [%zu] registered functions %d", s_wake_callbacks.size());
+            for (auto callback : s_wake_callbacks)      // execute the registered callbacks
+                if (callback)
+                    callback();
 
-            // // If the touch driver uses I2C/SPI, you may need to reinitialize it because
-            // // the bus may have been powered down. Check your driver's reinit function.
-
-            // ESP_LOGI(TAG, "Exited low-power mode, brightness restored to %d", s_previous_brightness);
+            ESP_LOGI(TAG, "Exited low-power mode, brightness restored to %d", s_previous_brightness);
         }
 
     #endif
@@ -500,6 +548,20 @@ namespace APP::UI::screen_manager {
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
     // FUNCTION IMPLEMENTATION =========================================================================================
+
+    void init() {
+
+        const esp_timer_create_args_t args = {
+            .callback = full_second_cb,
+            .arg = nullptr,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "full_second",
+            .skip_unhandled_events = false
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&args, &s_full_second_timer));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(s_full_second_timer, 1000 * 1000)); // 1s
+    }
+
 
     void register_screen(const std::string& name, std::unique_ptr<screen> screen) {
 
@@ -512,16 +574,16 @@ namespace APP::UI::screen_manager {
         if (find_index(name) >= 0) {
             ESP_LOGW(TAG, "Screen '%s' already registered - replacing", name.c_str());
             // Remove the old one
-            auto it = std::find_if(g_ordered_screens.begin(), g_ordered_screens.end(),
+            auto it = std::find_if(s_ordered_screens.begin(), s_ordered_screens.end(),
                 [&](const auto& pair) { return pair.first == name; });
-            if (it != g_ordered_screens.end()) {
-                g_ordered_screens.erase(it);
+            if (it != s_ordered_screens.end()) {
+                s_ordered_screens.erase(it);
             }
         }
 
         screen->init();   // let the screen create its UI
-        g_ordered_screens.emplace_back(name, std::move(screen));
-        ESP_LOGI(TAG, "Registered screen '%s' (total: %zu)", name.c_str(), g_ordered_screens.size());
+        s_ordered_screens.emplace_back(name, std::move(screen));
+        ESP_LOGI(TAG, "Registered screen '%s' (total: %zu)", name.c_str(), s_ordered_screens.size());
     }
 
 
@@ -534,23 +596,23 @@ namespace APP::UI::screen_manager {
         }
 
         // Remove gesture callback from the current screen (if any)
-        if (g_current) {
+        if (s_current) {
 
-            lv_obj_t* old_root = g_current->get_root();
+            lv_obj_t* old_root = s_current->get_root();
             if (old_root) {
 
                 lv_obj_remove_event_cb(old_root, touch_cb);
                 lv_obj_remove_event_cb(old_root, touch_begin_cb);
                 lv_obj_remove_event_cb(old_root, touch_end_cb);
             }
-            g_current->hide();
+            s_current->hide();
         }
 
-        g_current = g_ordered_screens[idx].second.get();
-        g_current_name = name;
-        g_current->show();
+        s_current = s_ordered_screens[idx].second.get();
+        s_current_name = name;
+        s_current->show();
 
-        lv_obj_t* root = g_current->get_root();
+        lv_obj_t* root = s_current->get_root();
         if (root) {
             
             lv_scr_load(root);
@@ -576,16 +638,47 @@ namespace APP::UI::screen_manager {
     }
 
 
-    screen* get_current() { return g_current; }
+    screen* get_current() { return s_current; }
 
 
     void handle_event(lv_event_t* e) {
 
-        if (g_current)
-            g_current->handle_event(e);
+        if (s_current)
+            s_current->handle_event(e);
             
         // If no current screen, the event is silently ignored.
     }
+
+
+    u8 add_sleep_callback(const callback_func callback) {
+
+        s_sleep_callbacks.push_back(callback);
+        return static_cast<u8>(s_sleep_callbacks.size() - 1);       // return index
+    }
+
+
+    void remove_sleep_callback(const u8 index) {
+
+		if (index < s_sleep_callbacks.size())
+			s_sleep_callbacks[index] = nullptr;
+    }
+
+
+    u8 add_wake_callback(const callback_func callback) {
+
+        s_wake_callbacks.push_back(callback);
+        return static_cast<u8>(s_wake_callbacks.size() - 1);       // return  index
+    }
+
+
+    void remove_wake_callback(const u8 index) {
+
+		if (index < s_wake_callbacks.size())
+			s_wake_callbacks[index] = nullptr;
+    }
+
+
+    bool is_charger_connected()         { return s_charger_connected; }
 
     // CLASS IMPLEMENTATION ============================================================================================
 
