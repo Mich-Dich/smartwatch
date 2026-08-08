@@ -30,7 +30,7 @@ namespace APP::UI {
 
     static bool                                     s_wifi_initialized = false;
 
-    // pre‑defined known networks (SSID + password)
+    // pre-defined known networks (SSID + password)
     std::vector<wifi_screen::known_network>         wifi_screen::m_known_networks = {
         {"Happy",                   "Kerstin321!"},
         {"FRITZ!Repeater 3000",     "frosch#5"},
@@ -140,7 +140,7 @@ namespace APP::UI {
         m_is_visible = true;
         lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
 
-        if (!s_wifi_initialized) {      // init Wi‑Fi if not done yet
+        if (!s_wifi_initialized) {          // init Wi-Fi if not done yet
 
             ble_scan_Deinit();
             espwifi_Init();
@@ -148,10 +148,10 @@ namespace APP::UI {
             s_wifi_initialized = true;
         }
 
-        if (!m_scan_timer)              // start periodic scanning (every 3 seconds)
+        if (!m_scan_timer)                  // start periodic scanning (every 3 seconds)
             m_scan_timer = lv_timer_create(scan_timer_cb, 3000, this);
 
-        start_scan_async();             // trigger first scan immediately
+        start_scan_async();                 // trigger first scan immediately
     }
 
 
@@ -160,11 +160,19 @@ namespace APP::UI {
         m_is_visible = false;
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
 
-        if (m_scan_timer) {             // stop timer
+        if (m_scan_timer) {                 // stop timer
             lv_timer_del(m_scan_timer);
             m_scan_timer = nullptr;
         }
-        stop_wifi();                    // deinit Wi‑Fi (this also stops any ongoing scan)
+        
+        // stop_wifi();                    // deinit Wi-Fi
+        // stop NTP if running
+        if (m_ntp_started) {
+            esp_sntp_stop();
+            m_ntp_started = false;
+        }
+
+        // stop any ongoing scan
     }
 
 
@@ -220,20 +228,28 @@ namespace APP::UI {
 
         for (size_t i = 0; i < m_networks.size(); ++i) {
             const std::string& ssid = m_networks[i];
+            bool is_connected = (ssid == m_connected_ssid);
 
             lv_obj_t* btn = lv_list_add_btn(m_list, nullptr, ssid.c_str());
-            lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), 0);
-            lv_obj_set_style_bg_color(btn, lv_color_hex(0x000000), 0);
-            lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
             lv_obj_set_style_border_width(btn, 1, 0);
             lv_obj_set_style_border_color(btn, lv_color_hex(0x333333), 0);
             lv_obj_set_style_border_side(btn, LV_BORDER_SIDE_BOTTOM, 0);
             lv_obj_add_flag(btn, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-            // store index as user data
             lv_obj_set_user_data(btn, (void*)i);
 
-            // click event to select this network
+            if (is_connected) {
+                // Connected network: solid background with support_color
+                lv_obj_set_style_bg_color(btn, support_color, 0);
+                lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+                lv_obj_set_style_text_color(btn, lv_color_hex(0x000000), 0); // black text for contrast
+            } else {
+                // Normal network: transparent background
+                lv_obj_set_style_bg_color(btn, lv_color_hex(0x000000), 0);
+                lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
+                lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), 0);
+            }
+
+            // Click event to select this network
             lv_obj_add_event_cb(btn, [](lv_event_t* e) {
                 lv_obj_t* btn = lv_event_get_target(e);
                 wifi_screen* self = (wifi_screen*)lv_event_get_user_data(e);
@@ -247,14 +263,27 @@ namespace APP::UI {
     void wifi_screen::clear_selection() {
 
         if (m_selected_item) {
-            lv_obj_set_style_bg_opa(m_selected_item, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_bg_color(m_selected_item, lv_color_hex(0x000000), 0);
+            size_t idx = (size_t)lv_obj_get_user_data(m_selected_item);
+            if (idx < m_networks.size() && m_networks[idx] == m_connected_ssid) {
+                // Restore connected style (support_color background)
+                lv_obj_set_style_bg_color(m_selected_item, support_color, 0);
+                lv_obj_set_style_bg_opa(m_selected_item, LV_OPA_COVER, 0);
+                lv_obj_set_style_text_color(m_selected_item, lv_color_hex(0x000000), 0);
+                lv_obj_set_style_border_width(m_selected_item, 0, 0);
+            } else {
+                // Reset to default transparent style
+                lv_obj_set_style_bg_opa(m_selected_item, LV_OPA_TRANSP, 0);
+                lv_obj_set_style_bg_color(m_selected_item, lv_color_hex(0x000000), 0);
+                lv_obj_set_style_text_color(m_selected_item, lv_color_hex(0xFFFFFF), 0);
+                lv_obj_set_style_border_width(m_selected_item, 0, 0);
+            }
             m_selected_item = nullptr;
         }
+
         m_device_selected = false;
         m_selected_index = 0;
 
-        // hide and reparent connect button to screen
+        // Hide and reparent connect button to screen
         if (m_connect_btn) {
             lv_obj_set_parent(m_connect_btn, m_screen);
             lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
@@ -365,7 +394,7 @@ namespace APP::UI {
             m_selected_index = 0;
             populate_list();                                // rebuilds all buttons
 
-            if (!m_pending_selection_ssid.empty()) {        // Try to re‑select the previously chosen SSID
+            if (!m_pending_selection_ssid.empty()) {        // Try to re-select the previously chosen SSID
 
                 auto it = std::find(m_networks.begin(), m_networks.end(), m_pending_selection_ssid);
                 if (it != m_networks.end()) {
@@ -406,7 +435,7 @@ namespace APP::UI {
 
         // we only need to do this once per connection
         m_ntp_started = false;
-        update_status("Time synchronized");
+        // update_status("Time synchronized");
     }
 
 
@@ -434,23 +463,33 @@ namespace APP::UI {
         if (idx >= m_networks.size())
             return;
 
-        clear_selection();                                          // Clear any previous selection (hides connect button, resets styles)
-        lv_obj_t* btn = lv_obj_get_child(m_list, idx);              // Get the list item button (direct child of m_list)
+        clear_selection();   // clears previous, restoring connected style if needed
+
+        lv_obj_t* btn = lv_obj_get_child(m_list, idx);
         if (!btn)
             return;
 
-        lv_obj_set_style_bg_opa(btn, LV_OPA_50, 0);                 // Highlight it
-        lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
         m_selected_item = btn;
         m_selected_index = idx;
         m_device_selected = true;
 
-        lv_obj_set_parent(m_connect_btn, btn);                      // Reparent connect button to this item
+        if (m_networks[idx] == m_connected_ssid) {
+            // Connected network: highlight with a white border (keep support_color background)
+            lv_obj_set_style_border_width(btn, 2, 0);
+            lv_obj_set_style_border_color(btn, lv_color_hex(0xFFFFFF), 0);
+        } else {
+            // Normal network: overlay with semi-transparent white
+            lv_obj_set_style_bg_opa(btn, LV_OPA_50, 0);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
+        }
+
+        // Reparent connect button to this item
+        lv_obj_set_parent(m_connect_btn, btn);
         lv_obj_align(m_connect_btn, LV_ALIGN_RIGHT_MID, 10, 0);
         lv_obj_clear_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_move_foreground(m_connect_btn);
 
-        m_pending_selection_ssid = m_networks[idx];                 // Remember this SSID for the next scan
+        m_pending_selection_ssid = m_networks[idx];
     }
 
     // static callbacks ------------------------------------------------------------------------------------------------
@@ -516,7 +555,7 @@ namespace APP::UI {
                     }
                     portEXIT_CRITICAL(&self->m_networks_mutex);
 
-                    // Signal UI thread to refresh the list and re‑select if possible
+                    // Signal UI thread to refresh the list and re-select if possible
                     self->m_scan_results_ready = true;
                     break;
                 }
@@ -532,70 +571,71 @@ namespace APP::UI {
                 case WIFI_EVENT_STA_DISCONNECTED: {
                     wifi_event_sta_disconnected_t* disconnected = (wifi_event_sta_disconnected_t*)event_data;
                     self->m_wifi_state = wifi_state::disconnected;
+                    self->m_connected_ssid.clear();
                     esp_wifi_disconnect();
 
-                    // provide a human‑readable reason
+                    // provide a human-readable reason
                     const char* reason_str = "Disconnected";
                     switch (disconnected->reason) {
-                        case WIFI_REASON_AUTH_EXPIRE:                    reason_str = "Auth expired"; break;
-                        case WIFI_REASON_AUTH_LEAVE:                     reason_str = "Auth leave"; break;
-                        case WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY:     reason_str = "Inactive"; break;
-                        case WIFI_REASON_ASSOC_TOOMANY:                  reason_str = "Too many stations"; break;
-                        case WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA:  reason_str = "Class2 non‑auth"; break;
-                        case WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA: reason_str = "Class3 non‑assoc"; break;
-                        case WIFI_REASON_ASSOC_LEAVE:                    reason_str = "Assoc leave"; break;
-                        case WIFI_REASON_ASSOC_NOT_AUTHED:               reason_str = "Not authenticated"; break;
-                        case WIFI_REASON_DISASSOC_PWRCAP_BAD:            reason_str = "Bad power cap"; break;
-                        case WIFI_REASON_DISASSOC_SUPCHAN_BAD:           reason_str = "Bad channel"; break;
-                        case WIFI_REASON_BSS_TRANSITION_DISASSOC:        reason_str = "BSS transition"; break;
-                        case WIFI_REASON_IE_INVALID:                     reason_str = "Invalid IE"; break;
-                        case WIFI_REASON_MIC_FAILURE:                    reason_str = "MIC failure"; break;
-                        case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:         reason_str = "4‑way timeout"; break;
-                        case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT:       reason_str = "Group key timeout"; break;
-                        case WIFI_REASON_IE_IN_4WAY_DIFFERS:             reason_str = "IE mismatch"; break;
-                        case WIFI_REASON_GROUP_CIPHER_INVALID:           reason_str = "Bad group cipher"; break;
-                        case WIFI_REASON_PAIRWISE_CIPHER_INVALID:        reason_str = "Bad pair cipher"; break;
-                        case WIFI_REASON_AKMP_INVALID:                   reason_str = "Bad AKMP"; break;
-                        case WIFI_REASON_UNSUPP_RSN_IE_VERSION:          reason_str = "Bad RSN version"; break;
-                        case WIFI_REASON_INVALID_RSN_IE_CAP:             reason_str = "Bad RSN caps"; break;
-                        case WIFI_REASON_802_1X_AUTH_FAILED:             reason_str = "802.1X auth fail"; break;
-                        case WIFI_REASON_CIPHER_SUITE_REJECTED:          reason_str = "Cipher rejected"; break;
-                        case WIFI_REASON_TDLS_PEER_UNREACHABLE:          reason_str = "TDLS no peer"; break;
-                        case WIFI_REASON_TDLS_UNSPECIFIED:               reason_str = "TDLS error"; break;
-                        case WIFI_REASON_SSP_REQUESTED_DISASSOC:         reason_str = "SSP disassoc"; break;
-                        case WIFI_REASON_NO_SSP_ROAMING_AGREEMENT:       reason_str = "No SSP roaming"; break;
-                        case WIFI_REASON_BAD_CIPHER_OR_AKM:              reason_str = "Bad cipher/AKM"; break;
-                        case WIFI_REASON_NOT_AUTHORIZED_THIS_LOCATION:   reason_str = "Not authorized"; break;
-                        case WIFI_REASON_SERVICE_CHANGE_PERCLUDES_TS:    reason_str = "Service changed"; break;
-                        case WIFI_REASON_UNSPECIFIED_QOS:                reason_str = "QoS error"; break;
-                        case WIFI_REASON_NOT_ENOUGH_BANDWIDTH:           reason_str = "Low bandwidth"; break;
-                        case WIFI_REASON_MISSING_ACKS:                   reason_str = "Missing ACKs"; break;
-                        case WIFI_REASON_EXCEEDED_TXOP:                  reason_str = "TXOP exceeded"; break;
-                        case WIFI_REASON_STA_LEAVING:                    reason_str = "STA leaving"; break;
-                        case WIFI_REASON_END_BA:                         reason_str = "End BA"; break;
-                        case WIFI_REASON_UNKNOWN_BA:                     reason_str = "Unknown BA"; break;
-                        case WIFI_REASON_TIMEOUT:                        reason_str = "Timeout"; break;
-                        case WIFI_REASON_PEER_INITIATED:                 reason_str = "Peer disassoc"; break;
-                        case WIFI_REASON_AP_INITIATED:                   reason_str = "AP disassoc"; break;
-                        case WIFI_REASON_INVALID_FT_ACTION_FRAME_COUNT:  reason_str = "Bad FT count"; break;
-                        case WIFI_REASON_INVALID_PMKID:                  reason_str = "Bad PMKID"; break;
-                        case WIFI_REASON_INVALID_MDE:                    reason_str = "Bad MDE"; break;
-                        case WIFI_REASON_INVALID_FTE:                    reason_str = "Bad FTE"; break;
-                        case WIFI_REASON_TRANSMISSION_LINK_ESTABLISH_FAILED: reason_str = "Link est. failed"; break;
-                        case WIFI_REASON_ALTERATIVE_CHANNEL_OCCUPIED:    reason_str = "Alt chan busy"; break;
-                        case WIFI_REASON_BEACON_TIMEOUT:                 reason_str = "Beacon timeout"; break;
-                        case WIFI_REASON_NO_AP_FOUND:                    reason_str = "No AP found"; break;
-                        case WIFI_REASON_AUTH_FAIL:                      reason_str = "Auth failed"; break;
-                        case WIFI_REASON_ASSOC_FAIL:                     reason_str = "Assoc failed"; break;
-                        case WIFI_REASON_HANDSHAKE_TIMEOUT:              reason_str = "Handshake timeout"; break;
-                        case WIFI_REASON_CONNECTION_FAIL:                reason_str = "Conn failed"; break;
-                        case WIFI_REASON_AP_TSF_RESET:                   reason_str = "AP TSF reset"; break;
-                        case WIFI_REASON_ROAMING:                        reason_str = "Roaming"; break;
-                        case WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG:   reason_str = "Comeback too long"; break;
-                        case WIFI_REASON_SA_QUERY_TIMEOUT:               reason_str = "SAQ timeout"; break;
-                        case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY: reason_str = "No AP: security"; break;
-                        case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD: reason_str = "No AP: auth mode"; break;
-                        case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:  reason_str = "No AP: RSSI"; break;
+                        case WIFI_REASON_AUTH_EXPIRE:                           reason_str = "Auth expired"; break;
+                        case WIFI_REASON_AUTH_LEAVE:                            reason_str = "Auth leave"; break;
+                        case WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY:            reason_str = "Inactive"; break;
+                        case WIFI_REASON_ASSOC_TOOMANY:                         reason_str = "Too many stations"; break;
+                        case WIFI_REASON_CLASS2_FRAME_FROM_NONAUTH_STA:         reason_str = "Class2 non-auth"; break;
+                        case WIFI_REASON_CLASS3_FRAME_FROM_NONASSOC_STA:        reason_str = "Class3 non-assoc"; break;
+                        case WIFI_REASON_ASSOC_LEAVE:                           reason_str = "Assoc leave"; break;
+                        case WIFI_REASON_ASSOC_NOT_AUTHED:                      reason_str = "Not authenticated"; break;
+                        case WIFI_REASON_DISASSOC_PWRCAP_BAD:                   reason_str = "Bad power cap"; break;
+                        case WIFI_REASON_DISASSOC_SUPCHAN_BAD:                  reason_str = "Bad channel"; break;
+                        case WIFI_REASON_BSS_TRANSITION_DISASSOC:               reason_str = "BSS transition"; break;
+                        case WIFI_REASON_IE_INVALID:                            reason_str = "Invalid IE"; break;
+                        case WIFI_REASON_MIC_FAILURE:                           reason_str = "MIC failure"; break;
+                        case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:                reason_str = "4-way timeout"; break;
+                        case WIFI_REASON_GROUP_KEY_UPDATE_TIMEOUT:              reason_str = "Group key timeout"; break;
+                        case WIFI_REASON_IE_IN_4WAY_DIFFERS:                    reason_str = "IE mismatch"; break;
+                        case WIFI_REASON_GROUP_CIPHER_INVALID:                  reason_str = "Bad group cipher"; break;
+                        case WIFI_REASON_PAIRWISE_CIPHER_INVALID:               reason_str = "Bad pair cipher"; break;
+                        case WIFI_REASON_AKMP_INVALID:                          reason_str = "Bad AKMP"; break;
+                        case WIFI_REASON_UNSUPP_RSN_IE_VERSION:                 reason_str = "Bad RSN version"; break;
+                        case WIFI_REASON_INVALID_RSN_IE_CAP:                    reason_str = "Bad RSN caps"; break;
+                        case WIFI_REASON_802_1X_AUTH_FAILED:                    reason_str = "802.1X auth fail"; break;
+                        case WIFI_REASON_CIPHER_SUITE_REJECTED:                 reason_str = "Cipher rejected"; break;
+                        case WIFI_REASON_TDLS_PEER_UNREACHABLE:                 reason_str = "TDLS no peer"; break;
+                        case WIFI_REASON_TDLS_UNSPECIFIED:                      reason_str = "TDLS error"; break;
+                        case WIFI_REASON_SSP_REQUESTED_DISASSOC:                reason_str = "SSP disassoc"; break;
+                        case WIFI_REASON_NO_SSP_ROAMING_AGREEMENT:              reason_str = "No SSP roaming"; break;
+                        case WIFI_REASON_BAD_CIPHER_OR_AKM:                     reason_str = "Bad cipher/AKM"; break;
+                        case WIFI_REASON_NOT_AUTHORIZED_THIS_LOCATION:          reason_str = "Not authorized"; break;
+                        case WIFI_REASON_SERVICE_CHANGE_PERCLUDES_TS:           reason_str = "Service changed"; break;
+                        case WIFI_REASON_UNSPECIFIED_QOS:                       reason_str = "QoS error"; break;
+                        case WIFI_REASON_NOT_ENOUGH_BANDWIDTH:                  reason_str = "Low bandwidth"; break;
+                        case WIFI_REASON_MISSING_ACKS:                          reason_str = "Missing ACKs"; break;
+                        case WIFI_REASON_EXCEEDED_TXOP:                         reason_str = "TXOP exceeded"; break;
+                        case WIFI_REASON_STA_LEAVING:                           reason_str = "STA leaving"; break;
+                        case WIFI_REASON_END_BA:                                reason_str = "End BA"; break;
+                        case WIFI_REASON_UNKNOWN_BA:                            reason_str = "Unknown BA"; break;
+                        case WIFI_REASON_TIMEOUT:                               reason_str = "Timeout"; break;
+                        case WIFI_REASON_PEER_INITIATED:                        reason_str = "Peer disassoc"; break;
+                        case WIFI_REASON_AP_INITIATED:                          reason_str = "AP disassoc"; break;
+                        case WIFI_REASON_INVALID_FT_ACTION_FRAME_COUNT:         reason_str = "Bad FT count"; break;
+                        case WIFI_REASON_INVALID_PMKID:                         reason_str = "Bad PMKID"; break;
+                        case WIFI_REASON_INVALID_MDE:                           reason_str = "Bad MDE"; break;
+                        case WIFI_REASON_INVALID_FTE:                           reason_str = "Bad FTE"; break;
+                        case WIFI_REASON_TRANSMISSION_LINK_ESTABLISH_FAILED:    reason_str = "Link est. failed"; break;
+                        case WIFI_REASON_ALTERATIVE_CHANNEL_OCCUPIED:           reason_str = "Alt chan busy"; break;
+                        case WIFI_REASON_BEACON_TIMEOUT:                        reason_str = "Beacon timeout"; break;
+                        case WIFI_REASON_NO_AP_FOUND:                           reason_str = "No AP found"; break;
+                        case WIFI_REASON_AUTH_FAIL:                             reason_str = "Auth failed"; break;
+                        case WIFI_REASON_ASSOC_FAIL:                            reason_str = "Assoc failed"; break;
+                        case WIFI_REASON_HANDSHAKE_TIMEOUT:                     reason_str = "Handshake timeout"; break;
+                        case WIFI_REASON_CONNECTION_FAIL:                       reason_str = "Conn failed"; break;
+                        case WIFI_REASON_AP_TSF_RESET:                          reason_str = "AP TSF reset"; break;
+                        case WIFI_REASON_ROAMING:                               reason_str = "Roaming"; break;
+                        case WIFI_REASON_ASSOC_COMEBACK_TIME_TOO_LONG:          reason_str = "Comeback too long"; break;
+                        case WIFI_REASON_SA_QUERY_TIMEOUT:                      reason_str = "SAQ timeout"; break;
+                        case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:     reason_str = "No AP: security"; break;
+                        case WIFI_REASON_NO_AP_FOUND_IN_AUTHMODE_THRESHOLD:     reason_str = "No AP: auth mode"; break;
+                        case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:         reason_str = "No AP: RSSI"; break;
                         default: break;
                     }
                     ui_update_msg msg;

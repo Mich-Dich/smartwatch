@@ -20,6 +20,11 @@
     #include <cmath>
     #include <time.h>
     #include <stdio.h>
+    #include <filesystem>
+    #include <fstream>
+    #include <cerrno>
+    #include <functional>
+    #include <unordered_set>
 
 #endif
 
@@ -99,6 +104,16 @@ extern const lv_font_t                  awesome_5_regular_42;
     // TYPES ================================================================================================
 
 #ifdef __cplusplus
+    
+	// @brief Type trait to detect std::vector types
+	template <typename T>
+	struct is_vector : std::false_type {};
+
+
+	template <typename T, typename Alloc>
+	struct is_vector<std::vector<T, Alloc>> : std::true_type {};
+
+
     struct clock {
         
         u8          hours{};
@@ -131,6 +146,27 @@ extern const lv_font_t                  awesome_5_regular_42;
             action;                                                                                         \
         }                                                                                                   \
     } while(0);
+
+
+    #define DELETE_COPY_CONSTRUCTOR(name)                                                                   \
+        name(const name&) = delete;                                                                         \
+        name& operator=(const name&) = delete;
+
+    #define DELETE_MOVE_CONSTRUCTOR(name)                                                                   \
+        name(name&&) = delete;                                                                              \
+        name& operator=(name&&) = delete;
+
+    #define DELETE_COPY_AND_MOVE_CONSTRUCTOR(name)                                                          \
+        DELETE_COPY_CONSTRUCTOR(name)                                                                       \
+        DELETE_MOVE_CONSTRUCTOR(name)
+
+    #define DEFAULT_CONSTRUCTORS(name)                                                                      \
+        name() = default;													                                \
+        name(const name&) = default;
+
+    #define DEFAULT_COPY_CONSTRUCTOR(name)							                                        \
+        name(const name& other) = default;
+
 
     // Force code to be inline
     #define FORCE_INLINE                                    inline __attribute__((always_inline))

@@ -20,7 +20,7 @@ namespace APP::system {
     void init();
 
 
-    f32 get_battery_voltage();
+    void get_battery_voltage(f32& adjusted, f32& raw_voltage);
 
 
     u8 get_battery_voltage_in_percent();

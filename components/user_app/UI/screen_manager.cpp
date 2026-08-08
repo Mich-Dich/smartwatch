@@ -186,24 +186,27 @@ namespace APP::UI::screen_manager {
 
         constexpr f32 CONNECTED_POWER_DIFFERENCE = 0.30f;                           // quick change in 1s
         static f32 previous_voltage = 0;
-        const f32 current_voltage = APP::system::get_battery_voltage();
 
-        if (current_voltage > (previous_voltage + CONNECTED_POWER_DIFFERENCE)) {    // power cable connected
+        f32 adjusted{};
+        f32 raw_voltage{};
+        APP::system::get_battery_voltage(adjusted, raw_voltage);
+
+        if (raw_voltage > (previous_voltage + CONNECTED_POWER_DIFFERENCE)) {    // power cable connected
 
             wake_system_event();
             rearm_sleep_system();
             APP::system::set_charger_connected(true);
         }
 
-        if (current_voltage < (previous_voltage - CONNECTED_POWER_DIFFERENCE)) {    // power cable disconnected
+        if (raw_voltage < (previous_voltage - CONNECTED_POWER_DIFFERENCE)) {    // power cable disconnected
 
             wake_system_event();
             rearm_sleep_system();
             APP::system::set_charger_connected(false);
         }
 
-        // ESP_LOGI(TAG, "previous: %.2f, current: %.2f", previous_voltage, current_voltage);
-        previous_voltage = current_voltage;
+        // ESP_LOGI(TAG, "previous: %.2f, current: %.2f", previous_voltage, raw_voltage);
+        previous_voltage = raw_voltage;
     }
 
 

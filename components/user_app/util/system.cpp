@@ -13,7 +13,7 @@ namespace APP::system {
 
     // CONSTANTS =======================================================================================================
 
-    static constexpr f32                        CHARGING_VOLTAGE_OFFSET = 0.4f;
+    static constexpr f32                        CHARGING_VOLTAGE_OFFSET = 0.40f;
 
     // MACROS ==========================================================================================================
 
@@ -102,21 +102,22 @@ namespace APP::system {
     }
 
 
-    f32 get_battery_voltage() {
+    void get_battery_voltage(f32& adjusted, f32& raw_voltage) {
 
         // i32 adc_data = 0;
-        f32 voltage = 0;
-        adc_get_value(&voltage/*, &adc_data*/);
+        f32 raw = 0;
+        adc_get_value(&raw/*, &adc_data*/);
+
+        adjusted = raw;
+        raw_voltage = raw;
 
         // If charger is connected, the measured voltage includes the charger's contribution.
         // Subtract an estimated offset to get the actual battery voltage.
         if (is_charger_connected()) {
-            voltage -= CHARGING_VOLTAGE_OFFSET;
-            if (voltage < 0)
-                voltage = 0;
+            adjusted -= CHARGING_VOLTAGE_OFFSET;
+            if (adjusted < 0)
+                adjusted = 0;
         }
-
-        return voltage;
     }
 
 
@@ -135,18 +136,20 @@ namespace APP::system {
             {4.10f,100.0f}
         }};
 
-        const f32 voltage = get_battery_voltage();
+        f32 adjusted{};
+        f32 raw_voltage{};
+        get_battery_voltage(adjusted, raw_voltage);
 
-        if (voltage <= table[0].first)                      // Clamp to table range
+        if (adjusted <= table[0].first)                      // Clamp to table range
             return 0;
 
-        if (voltage >= table[table.size() - 1].first)
+        if (adjusted >= table[table.size() - 1].first)
             return 100;
 
         for (size_t i = 0; i < table.size() - 1; ++i) {     // Find the segment containing voltage
-            if (voltage >= table[i].first && voltage < table[i+1].first) {
+            if (adjusted >= table[i].first && adjusted < table[i+1].first) {
 
-                const f32 frac = (voltage - table[i].first) / (table[i+1].first - table[i].first);
+                const f32 frac = (adjusted - table[i].first) / (table[i+1].first - table[i].first);
                 const f32 percent = table[i].second + frac * (table[i+1].second - table[i].second);
                 return static_cast<u8>(std::clamp(percent, 0.0f, 100.0f));
             }
