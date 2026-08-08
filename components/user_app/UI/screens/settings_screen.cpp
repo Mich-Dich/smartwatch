@@ -2,8 +2,9 @@
 #include "settings_screen.hpp"
 
 #include "user_app.hpp"
-#include "UI/util.hpp"                    // <-- for create_geometric_pattern_0
+#include "UI/util.hpp"
 #include "UI/screen_manager.hpp"
+#include "UI/screens/main_screen.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -91,8 +92,7 @@ namespace APP::UI {
         lv_obj_set_style_border_width(color_container, 0, 0);
         lv_obj_clear_flag(color_container, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_flex_flow(color_container, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(color_container, LV_FLEX_ALIGN_SPACE_EVENLY,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(color_container, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
         // ---- Highlight color wheel ----
         lv_obj_t* highlight_group = lv_obj_create(color_container);
@@ -100,8 +100,7 @@ namespace APP::UI {
         lv_obj_set_style_bg_opa(highlight_group, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(highlight_group, 0, 0);
         lv_obj_set_flex_flow(highlight_group, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(highlight_group, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(highlight_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
         m_highlight_label = lv_label_create(highlight_group);
         lv_label_set_text(m_highlight_label, "Highlight");
@@ -125,8 +124,7 @@ namespace APP::UI {
         lv_obj_set_style_bg_opa(support_group, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(support_group, 0, 0);
         lv_obj_set_flex_flow(support_group, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_flex_align(support_group, LV_FLEX_ALIGN_CENTER,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(support_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
         m_support_label = lv_label_create(support_group);
         lv_label_set_text(m_support_label, "Support");
@@ -143,6 +141,79 @@ namespace APP::UI {
         lv_obj_set_style_border_color(m_support_preview, lv_color_hex(0xFFFFFF), 0);
         lv_obj_set_style_bg_color(m_support_preview, support_color, 0);
         lv_obj_set_style_bg_opa(m_support_preview, LV_OPA_COVER, 0);
+
+
+        // ---- Time setting section ----
+        m_time_container = lv_obj_create(m_screen);
+        lv_obj_set_size(m_time_container, LV_PCT(90), LV_SIZE_CONTENT);
+        lv_obj_align(m_time_container, LV_ALIGN_BOTTOM_MID, 0, -20);
+        lv_obj_set_style_bg_opa(m_time_container, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(m_time_container, 0, 0);
+        lv_obj_set_flex_flow(m_time_container, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(m_time_container, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        // Label above the rollers? We'll put a small label in the flex row.
+        // Instead, we can have a separate label above the row, but we'll keep it simple.
+        // We'll create three items: Hours, Minutes, and Set button.
+
+        // ---- Hours roller ----
+        lv_obj_t* hour_group = lv_obj_create(m_time_container);
+        lv_obj_set_size(hour_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(hour_group, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(hour_group, 0, 0);
+        lv_obj_set_flex_flow(hour_group, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(hour_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        lv_obj_t* hour_label = lv_label_create(hour_group);
+        lv_label_set_text(hour_label, "H");
+        lv_obj_set_style_text_color(hour_label, lv_color_hex(0xFFFFFF), 0);
+
+        m_hour_roller = lv_roller_create(hour_group);
+        // Generate options "00\n01\n...\n23"
+        std::string hour_opts;
+        for (int i = 0; i < 24; ++i) {
+            char buf[3];
+            snprintf(buf, sizeof(buf), "%02d", i);
+            hour_opts += buf;
+            hour_opts += "\n";
+        }
+        hour_opts.pop_back(); // remove trailing newline
+        lv_roller_set_options(m_hour_roller, hour_opts.c_str(), LV_ROLLER_MODE_NORMAL);
+        lv_obj_set_size(m_hour_roller, 40, 80);
+
+        // ---- Minutes roller ----
+        lv_obj_t* minute_group = lv_obj_create(m_time_container);
+        lv_obj_set_size(minute_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(minute_group, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(minute_group, 0, 0);
+        lv_obj_set_flex_flow(minute_group, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(minute_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        lv_obj_t* minute_label = lv_label_create(minute_group);
+        lv_label_set_text(minute_label, "M");
+        lv_obj_set_style_text_color(minute_label, lv_color_hex(0xFFFFFF), 0);
+
+        m_minute_roller = lv_roller_create(minute_group);
+        std::string min_opts;
+        for (int i = 0; i < 60; ++i) {
+            char buf[3];
+            snprintf(buf, sizeof(buf), "%02d", i);
+            min_opts += buf;
+            min_opts += "\n";
+        }
+        min_opts.pop_back();
+        lv_roller_set_options(m_minute_roller, min_opts.c_str(), LV_ROLLER_MODE_NORMAL);
+        lv_obj_set_size(m_minute_roller, 40, 80);
+
+        // ---- Set button ----
+        m_set_time_btn = lv_btn_create(m_time_container);
+        lv_obj_set_size(m_set_time_btn, 50, 50);
+        lv_obj_add_event_cb(m_set_time_btn, set_time_btn_event_cb, LV_EVENT_CLICKED, this);
+
+        lv_obj_t* btn_label = lv_label_create(m_set_time_btn);
+        lv_label_set_text(btn_label, "Set");
+        lv_obj_center(btn_label);
+
 
         // Initially hidden (screen_manager will show it)
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
@@ -169,6 +240,21 @@ namespace APP::UI {
             lv_colorwheel_set_rgb(m_support_wheel, col);
             lv_obj_set_style_bg_color(m_support_preview, col, 0);
         }
+
+
+        // Sync time rollers to current system time
+        time_t now = time(nullptr);
+        struct tm tm_info;
+        localtime_r(&now, &tm_info);
+        // If time is valid (year > 1970), use it; otherwise default 0
+        int hour = (tm_info.tm_year > 70) ? tm_info.tm_hour : 0;
+        int minute = (tm_info.tm_year > 70) ? tm_info.tm_min : 0;
+
+        if (m_hour_roller)
+            lv_roller_set_selected(m_hour_roller, hour, LV_ANIM_OFF);
+
+        if (m_minute_roller)
+            lv_roller_set_selected(m_minute_roller, minute, LV_ANIM_OFF);
     }
 
 
@@ -219,6 +305,39 @@ namespace APP::UI {
             set_support_color(color);
             lv_obj_set_style_bg_color(self->m_support_preview, color, 0);
         }
+    }
+
+
+    void settings_screen::set_time_btn_event_cb(lv_event_t* e) {
+
+        settings_screen* self = (settings_screen*)lv_event_get_user_data(e);
+        if (!self)
+            return;
+
+        // Get selected strings from rollers
+        char hour_str[3] = {0};
+        char min_str[3] = {0};
+        lv_roller_get_selected_str(self->m_hour_roller, hour_str, sizeof(hour_str));
+        lv_roller_get_selected_str(self->m_minute_roller, min_str, sizeof(min_str));
+
+        int hour = atoi(hour_str);
+        int minute = atoi(min_str);
+
+        // Validate
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+
+            ESP_LOGW(TAG, "Invalid time values");
+            return;
+        }
+
+        // Create clock struct and update main screen
+        APP::clock new_time;
+        new_time.hours = hour;
+        new_time.minutes = minute;
+        new_time.seconds = 0;   // seconds are set to 0 on manual set
+        APP::UI::main_screen::set_clock(new_time);
+
+        ESP_LOGI(TAG, "Manual time set to %02d:%02d:00", hour, minute);
     }
 
 }

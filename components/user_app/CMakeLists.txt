@@ -9,19 +9,19 @@ idf_component_register(
 
 # Set C++ standard and suppress LVGL enum warning
 target_compile_options(${COMPONENT_LIB}         PRIVATE
-    
+
     $<$<COMPILE_LANGUAGE:CXX>:
         -std=c++23
         -Wno-deprecated-enum-enum-conversion
     >
 )
 
-# Precompile the shared header (this will be used by all .cpp files)
-target_precompile_headers(${COMPONENT_LIB}      PRIVATE
-    $<$<COMPILE_LANGUAGE:CXX>:util/pch.hpp>
-)
+# # Precompile the shared header (this will be used by all .cpp files)
+# target_precompile_headers(${COMPONENT_LIB}      PRIVATE
+#     $<$<COMPILE_LANGUAGE:CXX>:util/pch.hpp>
+# )
 
-target_sources(${COMPONENT_LIB}                 PRIVATE 
+target_sources(${COMPONENT_LIB}                 PRIVATE
     "font/inconsolata_extra_bold_14.c"
     "font/inconsolata_regular_26.c"
     "font/inconsolata_regular_48.c"

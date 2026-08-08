@@ -25,6 +25,12 @@ namespace APP::system {
 
     u8 get_battery_voltage_in_percent();
 
+
+    bool is_charger_connected();
+
+
+    void set_charger_connected(const bool connected);
+
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================

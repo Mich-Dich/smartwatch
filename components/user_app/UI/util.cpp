@@ -13,25 +13,17 @@ namespace APP::UI::util {
 
     // MACROS ==========================================================================================================
 
+    #define ENABLE_LOC_DEBUGGING                0
+
     // STATIC VARIABLES ================================================================================================
 
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
 
-    // Clamp a value to [LV_COORD_MIN, LV_COORD_MAX] (usually -32768..32767)
-    static lv_coord_t clamp_coord(i32 val);
-
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
-
-    static lv_coord_t clamp_coord(const i32 val) {
-        
-        if (val < LV_COORD_MIN) return LV_COORD_MIN;
-        if (val > LV_COORD_MAX) return LV_COORD_MAX;
-        return (lv_coord_t)val;
-    }
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
@@ -39,7 +31,7 @@ namespace APP::UI::util {
 
     void set_background(lv_obj_t* screen, lv_color_t color) {
 
-        if (!screen) 
+        if (!screen)
             return;
 
         lv_obj_set_style_bg_color(screen, color, 0);
@@ -52,7 +44,7 @@ namespace APP::UI::util {
 
 
     void create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
-        
+
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 
@@ -302,7 +294,7 @@ namespace APP::UI::util {
         lv_color_t* buf = (lv_color_t*)lv_mem_alloc(buf_size * sizeof(lv_color_t));
         if (!buf)
             return;
-        
+
         lv_canvas_set_buffer(canvas, buf, scr_w, scr_h, LV_IMG_CF_TRUE_COLOR);
         lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
 
@@ -330,7 +322,7 @@ namespace APP::UI::util {
         {   // Top‑left filled triangle (color1, 70% opacity) Equilateral triangle centered at the top‑left corner (0,0)
             lv_point_t pts[3];
             for (int i = 0; i < 3; i++) {
-                
+
                 const f32 angle = i * 2.0f * M_PI / 3.0f;                 // 0°, 120°, 240°
                 pts[i].x = (lv_coord_t)(tri1_size * cosf(angle));
                 pts[i].y = (lv_coord_t)(tri1_size * sinf(angle));
@@ -395,19 +387,19 @@ namespace APP::UI::util {
 
         //------- Thresholds (tune to your liking)-------
         constexpr i8 MIN_SWIPE_LENGTH               = 15;   // minimum net displacement in any direction (percent)
-        // constexpr i8 MAX_DEVIATION                  = 30;   // max perpendicular deviation for cardinal swipes
         constexpr i8 START_REGION                   = 35;   // percentage from edge to consider "near edge"
         constexpr i8 DIAGONAL_ANGLE_TOL             = 20;   // degrees tolerance around 45° for diagonals
 
         // Net displacement
         const i8 dx = data.touch_stop.x - data.touch_start.x;
         const i8 dy = data.touch_stop.y - data.touch_start.y;
-        const i8 len = std::abs(dx) + std::abs(dy);   // Manhattan length (quick filter)
+        const i8 len = std::abs(dx) + std::abs(dy);         // Manhattan length (quick filter)
         if (len < MIN_SWIPE_LENGTH)
             return swipe_direction::none;
 
-        double angle = std::atan2(dy, dx) * 180.0 / M_PI;       // Angle in degrees (0 = right, 90 = down, ±180 = left)
-        if (angle < 0) angle += 360.0;                          // Normalize to [0, 360)
+        double angle = std::atan2(dy, dx) * 180.0 / M_PI;   // Angle in degrees (0 = right, 90 = down, ±180 = left)
+        if (angle < 0)
+            angle += 360.0;                                 // Normalize to [0, 360)
 
         // Determine cardinal direction based on angle
         swipe_direction dir = swipe_direction::none;
@@ -417,9 +409,9 @@ namespace APP::UI::util {
         else                                        dir = swipe_direction::right;  // 315–360 or 0–45
 
         // Check for diagonal: if the angle is near 45°, 135°, 225°, 315° with tolerance
-        const double mod45 = std::fmod(angle + 45, 90); // distance to nearest 45° multiple
+        const double mod45 = std::fmod(angle + 45, 90);     // distance to nearest 45° multiple
         if (mod45 < DIAGONAL_ANGLE_TOL || mod45 > 90 - DIAGONAL_ANGLE_TOL) {
-            
+
             // Refine diagonal direction
             if (angle > 0 && angle < 90)            dir = swipe_direction::down_right;
             else if (angle > 90 && angle < 180)     dir = swipe_direction::down_left;
@@ -443,20 +435,22 @@ namespace APP::UI::util {
             default:                            start_ok = false; break;
         }
 
-        // Also require the path extent (min/max) not to be too large or small? 
-        // We can optionally add checks similar to before, but keep it simple for now.
+        #if ENABLE_LOC_DEBUGGING
+            // Also require the path extent (min/max) not to be too large or small?
+            // We can optionally add checks similar to before, but keep it simple for now.
 
-        // Log everything
-        const char* dir_str[] = {"None","Up","Down","Left","Right","UpLeft","UpRight","DownLeft","DownRight"};
-        ESP_LOGI(TAG,
-            "Swipe detection:\n"
-            "  dx=%2d, dy=%2d, len=%2d, angle=%.1f°, start=(%2d,%2d)\n"
-            "  → direction = %s, start_ok=%s",
-            dx, dy, len, angle,
-            data.touch_start.x, data.touch_start.y,
-            dir_str[static_cast<i32>(dir)],
-            start_ok ? "✅" : "❌"
-        );
+            // Log everything
+            const char* dir_str[] = {"None","Up","Down","Left","Right","UpLeft","UpRight","DownLeft","DownRight"};
+            ESP_LOGI(TAG,
+                "Swipe detection:\n"
+                "  dx=%2d, dy=%2d, len=%2d, angle=%.1f°, start=(%2d,%2d)\n"
+                "  → direction = %s, start_ok=%s",
+                dx, dy, len, angle,
+                data.touch_start.x, data.touch_start.y,
+                dir_str[static_cast<i32>(dir)],
+                start_ok ? "✅" : "❌"
+            );
+        #endif
 
         return (start_ok && dir != swipe_direction::none) ? dir : swipe_direction::none;
     }

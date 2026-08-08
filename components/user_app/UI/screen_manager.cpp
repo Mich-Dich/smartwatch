@@ -24,9 +24,9 @@ namespace APP::UI::screen_manager {
     // CONSTANTS =======================================================================================================
 
     constexpr u32                                                           DIM_TIMER_DURATION = 5 * 1000 * 1000;       // 5 seconds
-    
+
     #if USE_ESP_SLEEP_MODE
-        
+
         constexpr u32                                                       SLEEP_TIMER_DURATION = 3 * 1000 * 1000;     // 3 seconds after dim
 
     #endif
@@ -58,7 +58,7 @@ namespace APP::UI::screen_manager {
     static bool                                                             s_overlay_shown = false;
 
     static esp_timer_handle_t                                               s_dim_timer = nullptr;
-    
+
     static esp_timer_handle_t                                               s_full_second_timer = nullptr;
 
     static bool                                                             s_is_dimmed = false;
@@ -66,7 +66,7 @@ namespace APP::UI::screen_manager {
     #if USE_ESP_SLEEP_MODE
 
         static esp_timer_handle_t                                           s_sleep_timer = nullptr;
-    
+
         static bool                                                         s_is_sleeping = false;
 
     #endif
@@ -77,7 +77,9 @@ namespace APP::UI::screen_manager {
 
     static std::vector<callback_func>                                       s_wake_callbacks{};
 
-    static volatile bool                                                    s_charger_connected = false;
+    static util::touch_movement_data                                        s_display_touch_movement{};
+
+    static bool                                                             s_touch_active = false;
 
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
@@ -100,7 +102,7 @@ namespace APP::UI::screen_manager {
     static util::vec_2d lv_point_to_percent_coordinates(const lv_point_t point);
 
     static void create_overlay_if_needed();
-    
+
     static void show_overlay();
 
     static void hide_overlay();
@@ -112,7 +114,7 @@ namespace APP::UI::screen_manager {
     static void start_dim_timer();
 
     #if USE_ESP_SLEEP_MODE
-    
+
         static void sleep_timer_cb(void* arg);
 
         static void stop_sleep_timer();
@@ -134,7 +136,7 @@ namespace APP::UI::screen_manager {
         for (size_t i = 0; i < s_ordered_screens.size(); ++i)
             if (s_ordered_screens[i].first == name)
                 return static_cast<int>(i);
-        
+
         return -1;
     }
 
@@ -169,9 +171,9 @@ namespace APP::UI::screen_manager {
 
         #if USE_ESP_SLEEP_MODE
 
-            if (!s_is_sleeping) 
+            if (!s_is_sleeping)
                 start_dim_timer();
-        
+
         #else
 
             start_dim_timer();
@@ -181,23 +183,23 @@ namespace APP::UI::screen_manager {
 
 
     static void full_second_cb(void* arg) {
-        
+
         constexpr f32 CONNECTED_POWER_DIFFERENCE = 0.30f;                           // quick change in 1s
         static f32 previous_voltage = 0;
         const f32 current_voltage = APP::system::get_battery_voltage();
 
         if (current_voltage > (previous_voltage + CONNECTED_POWER_DIFFERENCE)) {    // power cable connected
-            
+
             wake_system_event();
             rearm_sleep_system();
-            s_charger_connected = true;
+            APP::system::set_charger_connected(true);
         }
-        
+
         if (current_voltage < (previous_voltage - CONNECTED_POWER_DIFFERENCE)) {    // power cable disconnected
-            
+
             wake_system_event();
             rearm_sleep_system();
-            s_charger_connected = false;
+            APP::system::set_charger_connected(false);
         }
 
         // ESP_LOGI(TAG, "previous: %.2f, current: %.2f", previous_voltage, current_voltage);
@@ -210,7 +212,7 @@ namespace APP::UI::screen_manager {
         wake_system_event();
 
         lv_indev_t* indev = lv_indev_get_act();
-        if (!indev) 
+        if (!indev)
             return;
 
         lv_point_t point;
@@ -258,21 +260,21 @@ namespace APP::UI::screen_manager {
 
         // Get display size
         lv_disp_t* disp = lv_disp_get_default();
-        if (!disp) 
+        if (!disp)
             return {-1, -1};
         lv_coord_t hor_res = lv_disp_get_hor_res(disp);
         lv_coord_t ver_res = lv_disp_get_ver_res(disp);
 
         return util::vec_2d{
-            static_cast<i8>((point.x * 100) / hor_res), 
-            static_cast<i8>((point.y * 100) / ver_res) 
+            static_cast<i8>((point.x * 100) / hor_res),
+            static_cast<i8>((point.y * 100) / ver_res)
         };
     }
 
 
     static void create_overlay_if_needed() {
 
-        if (s_overlay_cont) 
+        if (s_overlay_cont)
             return;
 
         // Full‑screen container with dimmed background
@@ -391,7 +393,7 @@ namespace APP::UI::screen_manager {
         s_overlay_shown = true;
     }
 
-    
+
     static void hide_overlay() {
 
         if (s_overlay_cont) {
@@ -399,7 +401,7 @@ namespace APP::UI::screen_manager {
             s_overlay_shown = false;
         }
     }
-    
+
 
     static void dim_timer_cb(void* arg) {
 
@@ -412,11 +414,11 @@ namespace APP::UI::screen_manager {
         #if USE_ESP_SLEEP_MODE
 
             start_sleep_timer();                                                    // Now start the sleep timer (3 seconds later)
-        
+
         #endif
     }
 
-    
+
     static void stop_dim_timer() {
 
         if (s_dim_timer)
@@ -428,11 +430,11 @@ namespace APP::UI::screen_manager {
 
         #if USE_ESP_SLEEP_MODE
 
-            if (s_is_sleeping) 
+            if (s_is_sleeping)
                 return;                                                             // If we are sleeping, don't start the dim timer (we'll start it after wake)
 
         #endif
-        
+
         if (s_dim_timer == nullptr) {
             esp_timer_create_args_t args = {
                 .callback = dim_timer_cb,
@@ -448,7 +450,7 @@ namespace APP::UI::screen_manager {
 
 
     #if USE_ESP_SLEEP_MODE
-            
+
         static void sleep_timer_cb(void* arg) {
 
             ESP_LOGI(TAG, "Entering low-power mode");
@@ -534,7 +536,7 @@ namespace APP::UI::screen_manager {
             //     }
             //     indev = lv_indev_get_next(indev);
             // }
-            
+
             ESP_LOGI(TAG, "Executing [%zu] registered functions %d", s_wake_callbacks.size());
             for (auto callback : s_wake_callbacks)      // execute the registered callbacks
                 if (callback)
@@ -614,22 +616,22 @@ namespace APP::UI::screen_manager {
 
         lv_obj_t* root = s_current->get_root();
         if (root) {
-            
+
             lv_scr_load(root);
             lv_obj_add_flag(root, LV_OBJ_FLAG_CLICKABLE);       // Enable gesture detection on the root screen
             lv_obj_add_flag(root, LV_OBJ_FLAG_GESTURE_BUBBLE);
             lv_obj_add_event_cb(root, touch_cb,         LV_EVENT_PRESSING,  nullptr);
             lv_obj_add_event_cb(root, touch_begin_cb,   LV_EVENT_PRESSED,   nullptr);
             lv_obj_add_event_cb(root, touch_end_cb,     LV_EVENT_RELEASED,  nullptr);
-            
+
             stop_dim_timer();
-            
+
             #if USE_ESP_SLEEP_MODE
-                
+
                 stop_sleep_timer();
 
             #endif
-            
+
             start_dim_timer();
         } else
             ESP_LOGE(TAG, "Screen '%s' has null root", name.c_str());
@@ -645,7 +647,7 @@ namespace APP::UI::screen_manager {
 
         if (s_current)
             s_current->handle_event(e);
-            
+
         // If no current screen, the event is silently ignored.
     }
 
@@ -676,9 +678,6 @@ namespace APP::UI::screen_manager {
 		if (index < s_wake_callbacks.size())
 			s_wake_callbacks[index] = nullptr;
     }
-
-
-    bool is_charger_connected()         { return s_charger_connected; }
 
     // CLASS IMPLEMENTATION ============================================================================================
 

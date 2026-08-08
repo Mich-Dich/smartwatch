@@ -24,7 +24,7 @@ namespace APP::UI {
 
     class settings_screen : public screen {
     public:
-        
+
         settings_screen();
         ~settings_screen();
 
@@ -38,7 +38,10 @@ namespace APP::UI {
     private:
 
         static void slider_event_cb(lv_event_t* e);
+
         static void color_wheel_event_cb(lv_event_t* e);
+
+        static void set_time_btn_event_cb(lv_event_t* e);
 
         lv_obj_t* m_screen = nullptr;
         lv_obj_t* m_slider = nullptr;
@@ -52,6 +55,11 @@ namespace APP::UI {
         lv_obj_t* m_support_wheel = nullptr;
         lv_obj_t* m_support_preview = nullptr;
         lv_obj_t* m_support_label = nullptr;
+
+        lv_obj_t* m_time_container = nullptr;
+        lv_obj_t* m_hour_roller = nullptr;
+        lv_obj_t* m_minute_roller = nullptr;
+        lv_obj_t* m_set_time_btn = nullptr;
     };
 
 }

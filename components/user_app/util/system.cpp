@@ -13,6 +13,8 @@ namespace APP::system {
 
     // CONSTANTS =======================================================================================================
 
+    static constexpr f32                        CHARGING_VOLTAGE_OFFSET = 0.4f;
+
     // MACROS ==========================================================================================================
 
     #define ADC_Calibrate
@@ -24,6 +26,8 @@ namespace APP::system {
     #endif
 
     static adc_oneshot_unit_handle_t            adc1_handle;
+
+    static volatile bool                        s_charger_connected = false;
 
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
@@ -103,6 +107,15 @@ namespace APP::system {
         // i32 adc_data = 0;
         f32 voltage = 0;
         adc_get_value(&voltage/*, &adc_data*/);
+
+        // If charger is connected, the measured voltage includes the charger's contribution.
+        // Subtract an estimated offset to get the actual battery voltage.
+        if (is_charger_connected()) {
+            voltage -= CHARGING_VOLTAGE_OFFSET;
+            if (voltage < 0)
+                voltage = 0;
+        }
+
         return voltage;
     }
 
@@ -110,39 +123,42 @@ namespace APP::system {
     u8 get_battery_voltage_in_percent() {
 
         // Table: {voltage (V), percent (%)} – sorted by voltage ascending
-        static constexpr std::pair<f32, f32> table[] = {
+        static constexpr std::array<std::pair<f32, f32>, 9> table = {{
             {3.00f,  0.0f},
             {3.30f,  5.0f},
             {3.50f, 20.0f},
             {3.65f, 40.0f},
             {3.75f, 55.0f},
             {3.85f, 70.0f},
-            {3.98f, 85.0f},
-            {4.05f, 93.0f},
-            {4.12f,100.0f}
-        };
-        constexpr size_t N = sizeof(table) / sizeof(table[0]);
+            {3.97f, 85.0f},
+            {4.03f, 93.0f},
+            {4.10f,100.0f}
+        }};
 
-        f32 voltage = get_battery_voltage();
+        const f32 voltage = get_battery_voltage();
 
-        // Clamp to table range
-        if (voltage <= table[0].first)
+        if (voltage <= table[0].first)                      // Clamp to table range
             return 0;
 
-        if (voltage >= table[N-1].first)
+        if (voltage >= table[table.size() - 1].first)
             return 100;
 
-        // Find the segment containing voltage
-        for (size_t i = 0; i < N - 1; ++i) {
+        for (size_t i = 0; i < table.size() - 1; ++i) {     // Find the segment containing voltage
             if (voltage >= table[i].first && voltage < table[i+1].first) {
 
-                f32 frac = (voltage - table[i].first) / (table[i+1].first - table[i].first);
-                f32 percent = table[i].second + frac * (table[i+1].second - table[i].second);
+                const f32 frac = (voltage - table[i].first) / (table[i+1].first - table[i].first);
+                const f32 percent = table[i].second + frac * (table[i+1].second - table[i].second);
                 return static_cast<u8>(std::clamp(percent, 0.0f, 100.0f));
             }
         }
         return 100; // fallback
     }
+
+    
+    bool is_charger_connected()                         { return s_charger_connected; }
+
+    
+    void set_charger_connected(const bool connected)    { s_charger_connected = connected; }
 
     // CLASS IMPLEMENTATION ============================================================================================
 

@@ -3,7 +3,7 @@
 
 #include "user_app.hpp"
 #include "UI/util.hpp"
-#include "UI/screens/main_screen.hpp" 
+#include "UI/screens/main_screen.hpp"
 
 #include <esp_sntp.h>
 #include <esp_wifi.h>
@@ -14,49 +14,49 @@
 
 
 
-// FORWARD DECLARATIONS ================================================================================================
+// fORWARD DECLARATIONS ================================================================================================
 
 namespace APP::UI {
 
-    // TYPES ===========================================================================================================
+    // tYPES ===========================================================================================================
 
-    // CONSTANTS =======================================================================================================
+    // cONSTANTS =======================================================================================================
 
-    // MACROS ==========================================================================================================
+    // mACROS ==========================================================================================================
 
-    // STATIC VARIABLES ================================================================================================
+    // sTATIC VARIABLES ================================================================================================
 
     static const char*                              TAG = "wifi_screen";
 
     static bool                                     s_wifi_initialized = false;
 
-    // Pre‑defined known networks (SSID + password)
+    // pre‑defined known networks (SSID + password)
     std::vector<wifi_screen::known_network>         wifi_screen::m_known_networks = {
         {"Happy",                   "Kerstin321!"},
-        {"FRITZ!Repeater 3000",     "frosch#5"}
+        {"FRITZ!Repeater 3000",     "frosch#5"},
+        {"Armor 34 Pro",            "I forgot"}
     };
 
-    // INTERNAL TEMPLATE DECLARATION ===================================================================================
+    // iNTERNAL TEMPLATE DECLARATION ===================================================================================
 
-    // INTERNAL FUNCTION DECLARATION ===================================================================================
+    // iNTERNAL FUNCTION DECLARATION ===================================================================================
 
-    // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
+    // iNTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
-    // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
+    // iNTERNAL FUNCTION IMPLEMENTATION ================================================================================
 
-    // TEMPLATE IMPLEMENTATION =========================================================================================
+    // tEMPLATE IMPLEMENTATION =========================================================================================
 
-    // FUNCTION IMPLEMENTATION =========================================================================================
+    // fUNCTION IMPLEMENTATION =========================================================================================
 
-    // CLASS IMPLEMENTATION ============================================================================================
+    // cLASS IMPLEMENTATION ============================================================================================
 
     wifi_screen::wifi_screen() = default;
 
 
     wifi_screen::~wifi_screen() { destroy(); }
 
-
-    // CLASS PUBLIC ====================================================================================================
+    // cLASS PUBLIC ====================================================================================================
 
     void wifi_screen::init() {
 
@@ -68,21 +68,21 @@ namespace APP::UI {
         lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
 
-        // Geometric background (same as bluetooth)
+        // geometric background (same as bluetooth)
         APP::UI::util::create_geometric_pattern_0(
             m_screen,
             lv_color_mix(highlight_color, lv_color_hex(0x000000), 80),
             lv_color_mix(support_color, lv_color_hex(0x000000), 80)
         );
 
-        // Status label
+        // status label
         m_status_label = lv_label_create(m_screen);
         lv_label_set_text(m_status_label, "WiFi networks");
         lv_obj_set_style_text_color(m_status_label, lv_color_hex(0xFFFFFF), 0);
         lv_obj_set_style_text_font(m_status_label, &inconsolata_regular_26, 0);
         lv_obj_align(m_status_label, LV_ALIGN_TOP_MID, 0, 20);
 
-        // List container – transparent
+        // list container – transparent
         m_list = lv_list_create(m_screen);
         lv_obj_set_size(m_list, LV_PCT(90), LV_PCT(70));
         lv_obj_align(m_list, LV_ALIGN_TOP_MID, 0, 70);
@@ -91,7 +91,7 @@ namespace APP::UI {
         lv_obj_set_style_pad_row(m_list, 4, 0);
         lv_obj_add_flag(m_list, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-        // Bottom toolbar with Scan button
+        // bottom toolbar with Scan button
         lv_obj_t* btn_container = lv_obj_create(m_screen);
         lv_obj_set_size(btn_container, LV_PCT(90), LV_SIZE_CONTENT);
         lv_obj_align(btn_container, LV_ALIGN_BOTTOM_MID, 0, -20);
@@ -99,20 +99,9 @@ namespace APP::UI {
         lv_obj_set_style_border_width(btn_container, 0, 0);
         lv_obj_clear_flag(btn_container, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_set_flex_flow(btn_container, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(btn_container, LV_FLEX_ALIGN_SPACE_EVENLY,
-                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_flex_align(btn_container, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-        // Scan button
-        m_scan_btn = lv_btn_create(btn_container);
-        lv_obj_set_size(m_scan_btn, 100, 40);
-        lv_obj_set_style_bg_color(m_scan_btn, lv_color_hex(0x0066FF), 0);
-        lv_obj_add_event_cb(m_scan_btn, scan_btn_event_cb, LV_EVENT_CLICKED, this);
-        lv_obj_add_flag(m_scan_btn, LV_OBJ_FLAG_EVENT_BUBBLE);
-        lv_obj_t* scan_label = lv_label_create(m_scan_btn);
-        lv_label_set_text(scan_label, "Scan");
-        lv_obj_center(scan_label);
-
-        // Floating Connect button (hidden initially)
+        // floating Connect button (hidden initially)
         m_connect_btn = lv_btn_create(m_screen);
         lv_obj_set_size(m_connect_btn, 40, 36);
         lv_obj_set_style_bg_color(m_connect_btn, lv_color_hex(0x0066FF), 0);
@@ -125,16 +114,16 @@ namespace APP::UI {
         lv_obj_set_style_text_color(connect_label, lv_color_hex(0xFFFFFF), 0);
         lv_obj_center(connect_label);
 
-        // Register WiFi event handlers
+        // register WiFi event handlers
         esp_event_handler_instance_t instance_any;
         esp_event_handler_instance_t instance_ip;
         esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, this, &instance_any);
         esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event_handler, this, &instance_ip);
 
-        // Queue for UI updates
+        // queue for UI updates
         m_ui_queue = xQueueCreate(5, sizeof(ui_update_msg));
 
-        // Timer to process UI queue every 100 ms
+        // timer to process UI queue every 100 ms
         lv_timer_create([](lv_timer_t* timer) {
             wifi_screen* self = static_cast<wifi_screen*>(timer->user_data);
             self->process_ui_queue();
@@ -148,15 +137,34 @@ namespace APP::UI {
 
     void wifi_screen::show() {
 
+        m_is_visible = true;
         lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
-        start_scan();   // auto‑scan when shown
+
+        if (!s_wifi_initialized) {      // init Wi‑Fi if not done yet
+
+            ble_scan_Deinit();
+            espwifi_Init();
+            esp_wifi_set_mode(WIFI_MODE_STA);
+            s_wifi_initialized = true;
+        }
+
+        if (!m_scan_timer)              // start periodic scanning (every 3 seconds)
+            m_scan_timer = lv_timer_create(scan_timer_cb, 3000, this);
+
+        start_scan_async();             // trigger first scan immediately
     }
 
 
     void wifi_screen::hide() {
 
+        m_is_visible = false;
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
-        stop_wifi();
+
+        if (m_scan_timer) {             // stop timer
+            lv_timer_del(m_scan_timer);
+            m_scan_timer = nullptr;
+        }
+        stop_wifi();                    // deinit Wi‑Fi (this also stops any ongoing scan)
     }
 
 
@@ -173,20 +181,17 @@ namespace APP::UI {
 
     bool wifi_screen::handle_event(lv_event_t* e) {
 
-        // Not used – handled via static callbacks
+        // not used – handled via static callbacks
         return false;
     }
 
 
-    // CLASS PRIVATE ===================================================================================================
+    // cLASS PRIVATE ===================================================================================================
 
-    void wifi_screen::start_scan() {
-
-        if (m_is_scanning)
-            return;
+    void wifi_screen::start_scan_async() {
 
         if (!s_wifi_initialized) {
-            // Deinit BLE to free resources (if needed)
+
             ble_scan_Deinit();
             espwifi_Init();
             esp_wifi_set_mode(WIFI_MODE_STA);
@@ -194,44 +199,18 @@ namespace APP::UI {
         }
 
         m_is_scanning = true;
-        update_status("Scanning...");
-        lv_obj_clean(m_list);
-        m_networks.clear();
-        clear_selection();
-
-        esp_wifi_scan_start(nullptr, true);   // blocking scan
-
-        uint16_t ap_count = 0;
-        esp_wifi_scan_get_ap_num(&ap_count);
-        ESP_LOGI(TAG, "Found %d APs", ap_count);
-
-        if (ap_count == 0) {
-            update_status("No networks found");
-            m_is_scanning = false;
-            return;
-        }
-
-        std::vector<wifi_ap_record_t> ap_records(ap_count);
-        esp_wifi_scan_get_ap_records(&ap_count, ap_records.data());
-
-        for (const auto& rec : ap_records) {
-            std::string ssid_str = reinterpret_cast<const char*>(rec.ssid);
-            // Trim whitespace
-            ssid_str.erase(0, ssid_str.find_first_not_of(" \t\n\r\f\v"));
-            ssid_str.erase(ssid_str.find_last_not_of(" \t\n\r\f\v") + 1);
-
-            if (ssid_str.empty()) {
-                ESP_LOGD(TAG, "Skipping empty SSID (hidden network)");
-                continue;
-            }
-
-            m_networks.push_back(ssid_str);
-            ESP_LOGI(TAG, "    Added network: %s", ssid_str.c_str());
-        }
-
-        populate_list();
-        update_status("Scan complete");
-        m_is_scanning = false;
+        wifi_scan_config_t scan_config = {};
+        scan_config.ssid = NULL;
+        scan_config.bssid = NULL;
+        scan_config.channel = 0;                      // scan all channels
+        scan_config.show_hidden = true;               // detect hidden networks
+        scan_config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+        scan_config.scan_time = {};
+        scan_config.scan_time.active = {};
+        scan_config.scan_time.active.min = 0;
+        scan_config.scan_time.active.max = 300;         // ms per channel (increase from default 120)
+        scan_config.home_chan_dwell_time = 0;
+        esp_wifi_scan_start(&scan_config, false);
     }
 
 
@@ -251,30 +230,15 @@ namespace APP::UI {
             lv_obj_set_style_border_side(btn, LV_BORDER_SIDE_BOTTOM, 0);
             lv_obj_add_flag(btn, LV_OBJ_FLAG_EVENT_BUBBLE);
 
-            // Store index as user data
+            // store index as user data
             lv_obj_set_user_data(btn, (void*)i);
 
-            // Click event to select this network
+            // click event to select this network
             lv_obj_add_event_cb(btn, [](lv_event_t* e) {
                 lv_obj_t* btn = lv_event_get_target(e);
                 wifi_screen* self = (wifi_screen*)lv_event_get_user_data(e);
                 size_t idx = (size_t)lv_obj_get_user_data(btn);
-                self->clear_selection();
-
-                // Highlight selected item
-                lv_obj_set_style_bg_opa(btn, LV_OPA_50, 0);
-                lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
-                self->m_selected_item = btn;
-                self->m_selected_index = idx;
-                self->m_device_selected = true;
-
-                // Reparent connect button to the list item
-                lv_obj_set_parent(self->m_connect_btn, btn);
-                lv_obj_align(self->m_connect_btn, LV_ALIGN_RIGHT_MID, 10, 0);
-                lv_obj_clear_flag(self->m_connect_btn, LV_OBJ_FLAG_HIDDEN);
-                lv_obj_move_foreground(self->m_connect_btn);
-
-                ESP_LOGI(TAG, "Selected network: %s", self->m_networks[idx].c_str());
+                self->select_network_by_index(idx);
             }, LV_EVENT_CLICKED, this);
         }
     }
@@ -290,7 +254,7 @@ namespace APP::UI {
         m_device_selected = false;
         m_selected_index = 0;
 
-        // Hide and reparent connect button to screen
+        // hide and reparent connect button to screen
         if (m_connect_btn) {
             lv_obj_set_parent(m_connect_btn, m_screen);
             lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
@@ -303,9 +267,19 @@ namespace APP::UI {
         if (!m_device_selected || m_selected_index >= m_networks.size())
             return;
 
+        // stop scanning while we connect
+        if (m_scan_timer) {
+
+            lv_timer_del(m_scan_timer);
+            m_scan_timer = nullptr;
+        }
+
+        // cancel any ongoing scan (just set flag; the scan done will still come but we ignore)
+        m_is_scanning = false;
+
         const std::string& ssid = m_networks[m_selected_index];
 
-        // Find password in static list
+        // find password in static list
         std::string password;
         bool found = false;
         for (const auto& known : m_known_networks) {
@@ -321,12 +295,12 @@ namespace APP::UI {
             return;
         }
 
-        // Store current SSID and start connection
+        // store current SSID and start connection
         m_connected_ssid = ssid;
         m_wifi_state = wifi_state::connecting;
         update_status("Connecting to " + ssid);
 
-        // Configure WiFi
+        // configure WiFi
         wifi_config_t wifi_config = {};
         strcpy((char*)wifi_config.sta.ssid, ssid.c_str());
         strcpy((char*)wifi_config.sta.password, password.c_str());
@@ -369,8 +343,43 @@ namespace APP::UI {
         ui_update_msg msg;
         while (xQueueReceive(m_ui_queue, &msg, 0) == pdTRUE)
             update_status(msg.text);
-    }
 
+        // Handle new scan results
+        if (m_scan_results_ready) {
+            m_scan_results_ready = false;
+
+            portENTER_CRITICAL(&m_networks_mutex);          // Copy the new network list
+            std::vector<std::string> networks_copy = m_networks;
+            portEXIT_CRITICAL(&m_networks_mutex);
+
+            m_networks = std::move(networks_copy);
+
+            if (m_connect_btn) {
+                lv_obj_set_parent(m_connect_btn, m_screen);
+                lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+            }
+
+            // Clear selection state (no LVGL style operations)
+            m_selected_item = nullptr;
+            m_device_selected = false;
+            m_selected_index = 0;
+            populate_list();                                // rebuilds all buttons
+
+            if (!m_pending_selection_ssid.empty()) {        // Try to re‑select the previously chosen SSID
+
+                auto it = std::find(m_networks.begin(), m_networks.end(), m_pending_selection_ssid);
+                if (it != m_networks.end()) {
+
+                    size_t idx = std::distance(m_networks.begin(), it);
+                    select_network_by_index(idx);
+                } else
+                    clear_selection();                      // SSID no longer available
+
+                m_pending_selection_ssid.clear();           // consumed
+            } else
+                clear_selection();                          // no pending selection
+        }
+    }
 
 
     void wifi_screen::check_ntp_sync() {
@@ -378,15 +387,14 @@ namespace APP::UI {
         if (!m_ntp_started)
             return;
 
-        // Check if NTP sync has completed
+        // check if NTP sync has completed
         if (sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED)
             return;
 
-        // NTP sync completed – get current time and update clock
-        time_t now = 0;
+        time_t now = 0;                                     // nTP sync completed – get current time and update clock
         struct tm timeinfo = {};
         time(&now);
-        localtime_r(&now, &timeinfo);      // assuming local timezone set via TZ
+        localtime_r(&now, &timeinfo);                       // assuming local timezone set via TZ
 
         APP::clock new_time;
         new_time.hours   = timeinfo.tm_hour;
@@ -396,9 +404,8 @@ namespace APP::UI {
         APP::UI::main_screen::set_clock(new_time);
         ESP_LOGI(TAG, "Clock updated via NTP: %02d:%02d:%02d", new_time.hours, new_time.minutes, new_time.seconds);
 
-        // We only need to do this once per connection
+        // we only need to do this once per connection
         m_ntp_started = false;
-        // Optionally show a one‑time status
         update_status("Time synchronized");
     }
 
@@ -408,7 +415,7 @@ namespace APP::UI {
         if (m_wifi_state == wifi_state::connected || m_wifi_state == wifi_state::connecting)
             esp_wifi_disconnect();
 
-        // Stop NTP if running
+        // stop NTP if running
         if (m_ntp_started) {
             esp_sntp_stop();
             m_ntp_started = false;
@@ -422,12 +429,37 @@ namespace APP::UI {
     }
 
 
-    // Static callbacks ------------------------------------------------------------------------------------------------
+    void wifi_screen::select_network_by_index(size_t idx) {
 
-    void wifi_screen::scan_btn_event_cb(lv_event_t* e) {
+        if (idx >= m_networks.size())
+            return;
 
-        wifi_screen* self = (wifi_screen*)lv_event_get_user_data(e);
-        self->start_scan();
+        clear_selection();                                          // Clear any previous selection (hides connect button, resets styles)
+        lv_obj_t* btn = lv_obj_get_child(m_list, idx);              // Get the list item button (direct child of m_list)
+        if (!btn)
+            return;
+
+        lv_obj_set_style_bg_opa(btn, LV_OPA_50, 0);                 // Highlight it
+        lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
+        m_selected_item = btn;
+        m_selected_index = idx;
+        m_device_selected = true;
+
+        lv_obj_set_parent(m_connect_btn, btn);                      // Reparent connect button to this item
+        lv_obj_align(m_connect_btn, LV_ALIGN_RIGHT_MID, 10, 0);
+        lv_obj_clear_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(m_connect_btn);
+
+        m_pending_selection_ssid = m_networks[idx];                 // Remember this SSID for the next scan
+    }
+
+    // static callbacks ------------------------------------------------------------------------------------------------
+
+    void wifi_screen::scan_timer_cb(lv_timer_t* timer) {
+
+        wifi_screen* self = static_cast<wifi_screen*>(timer->user_data);
+        if (self->m_is_visible && !self->m_is_scanning)
+            self->start_scan_async();
     }
 
 
@@ -438,13 +470,56 @@ namespace APP::UI {
     }
 
 
-    void wifi_screen::wifi_event_handler(void* arg, esp_event_base_t event_base,
-                                         int32_t event_id, void* event_data) {
+    void wifi_screen::wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data) {
 
         wifi_screen* self = static_cast<wifi_screen*>(arg);
 
         if (event_base == WIFI_EVENT) {
             switch (event_id) {
+
+                case WIFI_EVENT_SCAN_DONE: {
+                    // Remember currently selected SSID (if any)
+                    self->m_pending_selection_ssid.clear();
+                    if (self->m_device_selected && self->m_selected_index < self->m_networks.size()) {
+                        self->m_pending_selection_ssid = self->m_networks[self->m_selected_index];
+                    }
+
+                    self->m_selected_item = nullptr;
+                    self->m_device_selected = false;
+                    self->m_selected_index = 0;
+                    self->m_is_scanning = false;
+
+                    // Get AP count and records (same as before)
+                    uint16_t ap_count = 0;
+                    esp_wifi_scan_get_ap_num(&ap_count);
+                    if (ap_count == 0) {
+                        ui_update_msg msg;
+                        snprintf(msg.text, sizeof(msg.text), "No networks");
+                        xQueueSend(self->m_ui_queue, &msg, 0);
+                        break;
+                    }
+
+                    std::vector<wifi_ap_record_t> ap_records(ap_count);
+                    esp_wifi_scan_get_ap_records(&ap_count, ap_records.data());
+
+                    // Update m_networks
+                    portENTER_CRITICAL(&self->m_networks_mutex);
+                    self->m_networks.clear();
+                    for (const auto& rec : ap_records) {
+                        std::string ssid = reinterpret_cast<const char*>(rec.ssid);
+                        // trim whitespace
+                        ssid.erase(0, ssid.find_first_not_of(" \t\n\r\f\v"));
+                        ssid.erase(ssid.find_last_not_of(" \t\n\r\f\v") + 1);
+                        if (!ssid.empty()) {
+                            self->m_networks.push_back(ssid);
+                        }
+                    }
+                    portEXIT_CRITICAL(&self->m_networks_mutex);
+
+                    // Signal UI thread to refresh the list and re‑select if possible
+                    self->m_scan_results_ready = true;
+                    break;
+                }
 
                 case WIFI_EVENT_STA_CONNECTED: {
                     self->m_wifi_state = wifi_state::connected;
@@ -459,7 +534,7 @@ namespace APP::UI {
                     self->m_wifi_state = wifi_state::disconnected;
                     esp_wifi_disconnect();
 
-                    // Provide a human‑readable reason
+                    // provide a human‑readable reason
                     const char* reason_str = "Disconnected";
                     switch (disconnected->reason) {
                         case WIFI_REASON_AUTH_EXPIRE:                    reason_str = "Auth expired"; break;
@@ -526,6 +601,13 @@ namespace APP::UI {
                     ui_update_msg msg;
                     snprintf(msg.text, sizeof(msg.text), "Failed: %.12s", reason_str);
                     xQueueSend(self->m_ui_queue, &msg, 0);
+
+                    if (self->m_is_visible) {
+                        if (!self->m_scan_timer)            // Restart scanning timer if it was stopped
+                            self->m_scan_timer = lv_timer_create(scan_timer_cb, 3000, self);
+
+                        self->start_scan_async();
+                    }
                     break;
                 }
 
@@ -550,15 +632,16 @@ namespace APP::UI {
             snprintf(msg.text, sizeof(msg.text), "WiFi: %s", self->m_connected_ssid.c_str());
             xQueueSend(self->m_ui_queue, &msg, 0);
 
-            // ---- Start NTP synchronisation (only if not already started) ----
+            // start NTP synchronisation (only if not already started)
             if (!self->m_ntp_started) {
-                // Set timezone to UTC (or your local TZ)
-                setenv("TZ", "UTC-0", 1);
+
+                // Germany: CET (UTC+1) and CEST (UTC+2) with DST rules
+                setenv("TZ", "CET-1CEST-2,M3.5.0/2,M10.5.0/3", 1);
                 tzset();
 
-                sntp_setoperatingmode(SNTP_OPMODE_POLL);
-                sntp_setservername(0, "pool.ntp.org");
-                sntp_init();
+                esp_sntp_setoperatingmode(SNTP_OPMODE_POLL);
+                esp_sntp_setservername(0, "pool.ntp.org");
+                esp_sntp_init();
                 self->m_ntp_started = true;
                 ESP_LOGI(TAG, "NTP client started");
             }
