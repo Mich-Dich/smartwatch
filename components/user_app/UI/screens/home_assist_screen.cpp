@@ -4,8 +4,9 @@
 #include <esp_http_client.h>
 
 #include "util/io/serializer_yaml.hpp"
-#include "user_app.hpp"
+#include "util/home_assist_credentials.hpp"
 #include "UI/util.hpp"
+#include "user_app.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -19,14 +20,10 @@ namespace APP::UI {
     static const char*                      TAG = "home_assist_screen";
 
     static constexpr const char*            SERVER_URL = "http://192.168.178.32:5000/data";
-    
-    static constexpr const char*            USERNAME = "admin";
-    
-    static constexpr const char*            PASSWORD = "J=e>LDG=?wKMXAGk$}.QenhIU6=mR-w?n8Mj=%[v8aZ[Hr5RvZ0kS*CZhqxh_Kg:7_";
 
     // MACROS ==========================================================================================================
 
-    #define DEBUG_FETCH_DATA                0
+    #define DEBUG_FETCH_DATA_FUNCTION       0
 
     // STATIC VARIABLES ================================================================================================
 
@@ -45,7 +42,8 @@ namespace APP::UI {
     // CLASS IMPLEMENTATION ============================================================================================
 
     home_assist_screen::home_assist_screen() = default;
-    
+
+
     home_assist_screen::~home_assist_screen() { destroy(); }
 
     // CLASS PUBLIC ====================================================================================================
@@ -156,8 +154,8 @@ namespace APP::UI {
             return;
         }
 
-        esp_http_client_set_username(client, USERNAME);
-        esp_http_client_set_password(client, PASSWORD);
+        esp_http_client_set_username(client, credentials::SERVER_USERNAME);
+        esp_http_client_set_password(client, credentials::SERVER_PASSWORD);
         esp_http_client_set_authtype(client, HTTP_AUTH_TYPE_BASIC);
 
         // Open connection and send request (write_len = 0 for GET)
@@ -173,7 +171,7 @@ namespace APP::UI {
         int content_length = esp_http_client_fetch_headers(client);
         int status = esp_http_client_get_status_code(client);
         
-        #if DEBUG_FETCH_DATA
+        #if DEBUG_FETCH_DATA_FUNCTION
             ESP_LOGI(TAG, "HTTP status: %d, content_length: %d", status, content_length);
         #endif
 
@@ -196,14 +194,14 @@ namespace APP::UI {
         std::string response_body{};
         char buffer[128];
         int data_read;
-        #if DEBUG_FETCH_DATA
+        #if DEBUG_FETCH_DATA_FUNCTION
             ESP_LOGI(TAG, "Starting to read response body...");
         #endif
 
         while ((data_read = esp_http_client_read(client, buffer, sizeof(buffer) - 1)) > 0) {
             buffer[data_read] = '\0';
             response_body += buffer;
-            #if DEBUG_FETCH_DATA
+            #if DEBUG_FETCH_DATA_FUNCTION
                 ESP_LOGI(TAG, "Read chunk: %d bytes", data_read);
             #endif
         }
@@ -216,7 +214,7 @@ namespace APP::UI {
             return;
         }
 
-        #if DEBUG_FETCH_DATA
+        #if DEBUG_FETCH_DATA_FUNCTION
             ESP_LOGI(TAG, "Total bytes read: %d", (int)response_body.size());
         #endif
 
@@ -228,7 +226,7 @@ namespace APP::UI {
             return;
         }
 
-        #if DEBUG_FETCH_DATA
+        #if DEBUG_FETCH_DATA_FUNCTION
             ESP_LOGI(TAG, "Server message: [%s]", response_body.c_str());
         #endif
 

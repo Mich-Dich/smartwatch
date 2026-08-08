@@ -28,3 +28,12 @@ __pycache__/
 *.elf
 *.map
 *.log
+
+
+# Credentials for custom home assist server
+# anyone cloning this to create its own in this style
+#   namespace APP::credentials {
+#       static constexpr const char* SERVER_USERNAME = "ABC";
+#       static constexpr const char* SERVER_PASSWORD = "ABC";
+#   }
+components/user_app/util/home_assist_credentials.hpp
