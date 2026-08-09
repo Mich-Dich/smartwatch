@@ -1,6 +1,7 @@
 {
     "idf.currentSetup": "/home/mich/esp/esp-idf",
     "cSpell.words": [
-        "inconsolata"
+        "inconsolata",
+        "LVGL"
     ]
 }

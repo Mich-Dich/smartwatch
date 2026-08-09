@@ -26,11 +26,13 @@ namespace APP::UI {
 
     // sTATIC VARIABLES ================================================================================================
 
+    // @brief Logging tag for this file.
     static const char*                              TAG = "wifi_screen";
 
+    // @brief Global flag indicating whether WiFi is initialised.
     static bool                                     s_wifi_initialized = false;
 
-    // pre-defined known networks (SSID + password)
+    // @brief Pre‑defined known networks (SSID + password).
     std::vector<wifi_screen::known_network>         wifi_screen::m_known_networks = {
         {"Happy",                   "Kerstin321!"},
         {"FRITZ!Repeater 3000",     "frosch#5"},

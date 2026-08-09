@@ -25,10 +25,12 @@ namespace APP::UI::screen_manager {
 
     // CONSTANTS =======================================================================================================
 
+    // @brief Time (µs) after last interaction before dimming the display.
     constexpr u32                                                           DIM_TIMER_DURATION = 9 * 1000 * 1000;
 
     #if USE_ESP_SLEEP_MODE
 
+        // @brief Time (µs) after dimming before entering low‑power sleep.
         constexpr u32                                                       SLEEP_TIMER_DURATION = 3 * 1000 * 1000;     // 3 seconds after dim
 
     #endif
@@ -45,18 +47,23 @@ namespace APP::UI::screen_manager {
 
     // STATIC VARIABLES ================================================================================================
 
+    // @brief List of registered screens (name + unique_ptr).
     static std::vector<std::pair<std::string, std::unique_ptr<screen>>>     s_ordered_screens{};
 
+    // @brief Pointer to the currently active screen.
     static screen*                                                          s_current = nullptr;
 
+    // @brief Name of the currently active screen.
     static std::string                                                      s_current_name;
 
+    // @brief Overlay container (full‑screen background) and its list child.
     static lv_obj_t*                                                        s_overlay_cont = nullptr;
 
     static lv_obj_t*                                                        s_overlay_list = nullptr;
 
     static bool                                                             s_overlay_shown = false;
 
+    // @brief Timers for dimming, sleep, and battery monitoring.
     static esp_timer_handle_t                                               s_dim_timer = nullptr;
 
     static esp_timer_handle_t                                               s_full_second_timer = nullptr;
@@ -71,12 +78,15 @@ namespace APP::UI::screen_manager {
 
     #endif
 
+    // @brief Previous brightness value (to restore after dimming).
     static uint8_t                                                          s_previous_brightness = 255;
 
+    // @brief Lists of callbacks for sleep and wake events.
     static std::vector<callback_func>                                       s_sleep_callbacks;
 
     static std::vector<callback_func>                                       s_wake_callbacks;
 
+    // @brief LVGL timer for touch polling (100 ms) and associated touch state.
     static lv_timer_t*                                                      s_interaction_lv_timer = nullptr;
 
     static bool                                                             s_touch_was_pressed = false;
@@ -89,39 +99,57 @@ namespace APP::UI::screen_manager {
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
 
+    // @brief Find the index of a screen by name.
+    // @param name  Screen name.
+    // @return      Index in s_ordered_screens, or -1 if not found.
     static int find_index(const std::string& name);
 
+    // @brief Wake the system: restore brightness, stop dim/sleep timers.
     static void wake_system_event();
 
+    // @brief Re‑arm the dim timer (and optionally sleep timer) after user activity.
     static void rearm_sleep_system();
 
+    // @brief Timer callback for battery voltage monitoring (every 1 second).
     static void full_second_cb(void* arg);
 
-    // Replace the existing interaction_timer_cb with this:
+    // @brief LVGL timer callback for touch polling (every 100 ms).
+    //        Reads the touch state, wakes the system on press, and detects down‑swipe.
     static void interaction_timer_cb(lv_timer_t* timer);
 
+    // @brief Create the overlay UI objects (if not already created).
     static void create_overlay_if_needed();
 
+    // @brief Show the overlay with a slide‑down animation and populate the screen list.
     static void show_overlay();
 
+    // @brief Hide the overlay.
     static void hide_overlay();
 
+    // @brief Timer callback for display dimming (after inactivity).
     static void dim_timer_cb(void* arg);
 
+    // @brief Stop the dim timer.
     static void stop_dim_timer();
 
+    // @brief Start the dim timer with the configured duration.
     static void start_dim_timer();
 
     #if USE_ESP_SLEEP_MODE
 
+        // @brief Timer callback for entering low‑power sleep.
         static void sleep_timer_cb(void* arg);
 
+        // @brief Stop the sleep timer.
         static void stop_sleep_timer();
 
+        // @brief Start the sleep timer (after dimming).
         static void start_sleep_timer();
 
+        // @brief Enter low‑power mode (turn off backlight, execute sleep callbacks).
         static void enter_low_power_mode();
 
+        // @brief Exit low‑power mode (restore brightness, execute wake callbacks).
         static void exit_low_power_mode();
 
     #endif

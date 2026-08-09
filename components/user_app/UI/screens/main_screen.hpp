@@ -24,6 +24,7 @@ namespace APP::UI {
 
     // CLASS DECLARATION ====================================================================================
 
+    // @brief The main screen of the smartwatch – displays time, battery, and geometric decorations.
     class main_screen : public screen {
     public:
 
@@ -33,25 +34,39 @@ namespace APP::UI {
 
         void init() override;
 
+
         void show() override;
+
 
         void hide() override;
 
+
         void destroy() override;
 
+
         lv_obj_t* get_root() override;
+
 
         // Event callback for this screen's widgets
         bool handle_event(lv_event_t* e) override;
 
+
+        // @brief Set the clock time (used by NTP or manual setting).
+        // @param time  New time (hours, minutes, seconds).
         static void set_clock(const APP::clock time);
 
     private:
 
+        
+        // @brief Start the internal timer that updates the clock every second.
         void start_clock();
 
+        
+        // @brief Update the clock display (called every second by the timer).
         void update_clock();
 
+        
+        // @brief Draw decorative geometric elements on the screen (no longer used; kept for reference).
         void draw_decorations(lv_obj_t* parent);
 
 

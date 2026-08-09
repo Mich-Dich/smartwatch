@@ -13,6 +13,7 @@ namespace APP::UI::util {
 
     // TYPES ================================================================================================
 
+    // @brief Direction of a swipe gesture.
     enum class swipe_direction {
         none = 0,
         up,
@@ -26,6 +27,7 @@ namespace APP::UI::util {
     };
 
 
+    // @brief 2D vector with signed 8‑bit coordinates (typically percent values 0‑100).
     struct vec_2d {
 
         i8          x{};
@@ -61,6 +63,7 @@ namespace APP::UI::util {
     }
 
 
+    // @brief Data structure for tracking a touch movement (start, end, min/max, size).
     struct touch_movement_data {
 
         touch_movement_data(vec_2d touch_start, vec_2d touch_size, vec_2d touch_stop, vec_2d touch_max, vec_2d touch_min)
@@ -86,12 +89,12 @@ namespace APP::UI::util {
             if (point.x > touch_max.x)      touch_max.x = point.x;
             if (point.y > touch_max.y)      touch_max.y = point.y;
         }
-
-        vec_2d      touch_start = {};  // -1: not set; 0-100 the coordinate in percent
-        vec_2d      touch_size = {};   // -1: not set; 0-100 the coordinate in percent
-        vec_2d      touch_stop = {};   // -1: not set; 0-100 the coordinate in percent
-        vec_2d      touch_max = {};    // -1: not set; 0-100 the coordinate in percent
-        vec_2d      touch_min = {};    // -1: not set; 0-100 the coordinate in percent
+        
+        vec_2d              touch_start{};   // first touch point (percent)
+        vec_2d              touch_size{};    // difference between max and min
+        vec_2d              touch_stop{};    // last touch point before release
+        vec_2d              touch_max{};     // maximum x/y reached during movement
+        vec_2d              touch_min{};     // minimum x/y reached during movement
     };
 
     // STATIC VARIABLES =====================================================================================
@@ -110,8 +113,8 @@ namespace APP::UI::util {
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
     // @param color2  Secondary color (used for strokes, e.g. white/cyan).
     void create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
-    
-    
+
+
     // @brief Create a black background with a geometric pattern drawn in two colors.
     // @param screen  The LVGL screen object to style.
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
@@ -126,11 +129,17 @@ namespace APP::UI::util {
     void create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
+    // @brief Convert an LVGL point (pixel coordinates) to percent (0‑100) of display size.
+    // @param p  LVGL point in pixels.
+    // @return   vec_2d with percent values.
     vec_2d lv_point_to_percent(const lv_point_t& p);
 
 
+    // @brief Detect the swipe direction from a touch_movement_data structure.
+    // @param data  Movement data including start and stop points.
+    // @return      Detected swipe_direction, or none if no valid swipe.
     swipe_direction get_swipe_direction(const touch_movement_data& data);
-    
+
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================

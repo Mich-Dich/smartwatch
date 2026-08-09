@@ -22,6 +22,7 @@ namespace APP::UI {
 
     // CLASS DECLARATION ====================================================================================
 
+    // @brief Settings screen – brightness, highlight/support colors, and manual time setting.
     class settings_screen : public screen {
     public:
 
@@ -37,12 +38,18 @@ namespace APP::UI {
 
     private:
 
+        // @brief Callback for the brightness slider.
         static void slider_event_cb(lv_event_t* e);
 
+        
+        // @brief Callback for the color wheels.
         static void color_wheel_event_cb(lv_event_t* e);
 
+        
+        // @brief Callback for the Set Time button.
         static void set_time_btn_event_cb(lv_event_t* e);
 
+        
         lv_obj_t* m_screen = nullptr;
         lv_obj_t* m_slider = nullptr;
         lv_obj_t* m_label = nullptr;

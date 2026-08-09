@@ -64,22 +64,44 @@ namespace APP::UI {
             f32                     uptime_seconds{};
         };
 
-        // Constants for charts
+        // @brief Number of data points kept in the chart history.
         static constexpr int HISTORY_SIZE = 10;
 
+
+        // @brief Parse YAML response from the server into m_server_pc_data.
+        // @param yaml_data  Pointer to the YAML string.
+        // @return           True if parsing succeeded.
         bool read_yaml_data(std::string* yaml_data);
-        
+
+
+        // @brief Perform the HTTP GET request to the server and update UI.
         void fetch_data();
-        
+
+
+        // @brief Update UI with new data and a status message.
+        // @param data    The parsed server data.
+        // @param status  Status string (e.g., "OK").
         void update_ui(const server_pc_data& data, const char* status);
-        
+
+
+        // @brief Show an error message in the UI.
+        // @param error  Error description.
         void update_ui_error(const char* error);
-        
+
+
+        // @brief Format uptime seconds into a human‑readable string.
+        // @param seconds  Uptime in seconds.
+        // @return         Formatted string (e.g., "1d 2h 3m 45s").
         static std::string format_uptime(f32 seconds);
 
+
+        // @brief LVGL timer callback for periodic data fetching.
         static void timer_cb(lv_timer_t* timer);
-        
+
+
+        // @brief LVGL event callback for the refresh button.
         static void refresh_btn_cb(lv_event_t* e);
+
 
         // UI elements
         lv_obj_t*                   m_screen = nullptr;
