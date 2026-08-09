@@ -383,11 +383,26 @@ namespace APP::UI::util {
     }
 
 
+    vec_2d lv_point_to_percent(const lv_point_t& p) {
+
+        lv_disp_t* disp = lv_disp_get_default();
+        if (!disp) 
+            return {0, 0};
+
+        lv_coord_t w = lv_disp_get_hor_res(disp);
+        lv_coord_t h = lv_disp_get_ver_res(disp);
+        return {
+            static_cast<i8>((p.x * 100) / w),
+            static_cast<i8>((p.y * 100) / h)
+        };
+    }
+
+
     swipe_direction get_swipe_direction(const touch_movement_data& data) {
 
         //------- Thresholds (tune to your liking)-------
         constexpr i8 MIN_SWIPE_LENGTH               = 15;   // minimum net displacement in any direction (percent)
-        constexpr i8 START_REGION                   = 35;   // percentage from edge to consider "near edge"
+        constexpr i8 START_REGION                   = 20;   // percentage from edge to consider "near edge"
         constexpr i8 DIAGONAL_ANGLE_TOL             = 20;   // degrees tolerance around 45° for diagonals
 
         // Net displacement

@@ -30,12 +30,24 @@ namespace APP::UI {
         bluetooth_screen();
         ~bluetooth_screen() override;
 
+        
         void init() override;
+        
         void show() override;
+        
         void hide() override;
+        
         void destroy() override;
+        
         lv_obj_t* get_root() override;
+
         bool handle_event(lv_event_t* e) override;
+
+        bool display_toggle_in_manager() { return true; }
+
+        void toggle_change_from_manager(const bool enable);
+
+        bool get_toggle_state() const;
 
     private:
 
@@ -50,6 +62,10 @@ namespace APP::UI {
         void clear_selection();
 
         void stop_bluetooth();
+
+        void init_bluetooth();
+
+        void deinit_bluetooth();
         
         static void timer_callback(lv_timer_t* timer);
 
@@ -74,6 +90,7 @@ namespace APP::UI {
         bool                    m_device_selected = false;
         lv_obj_t*               m_selected_item = nullptr; 
 
+        bool                    m_bluetooth_enabled;
     };
 
 }

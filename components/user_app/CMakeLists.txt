@@ -3,7 +3,15 @@ file(GLOB_RECURSE APP_SOURCES "*.cpp")
 
 idf_component_register(
     SRCS ${APP_SOURCES}
-    PRIV_REQUIRES esp_adc sd_card_bsp lvgl ui_bsp esp_wifi_bsp ble_scan_bsp qmi8658c esp_http_client
+    PRIV_REQUIRES 
+        lvgl
+        esp_adc
+        esp_wifi_bsp
+        esp_http_client
+        sd_card_bsp
+        ui_bsp
+        ble_scan_bsp
+        qmi8658c
     INCLUDE_DIRS    "./"
 )
 

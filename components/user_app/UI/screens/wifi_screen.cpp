@@ -152,6 +152,7 @@ namespace APP::UI {
             m_scan_timer = lv_timer_create(scan_timer_cb, 3000, this);
 
         start_scan_async();                 // trigger first scan immediately
+        // update_ui_for_state();              // Ensure UI reflects current state
     }
 
 
@@ -164,15 +165,6 @@ namespace APP::UI {
             lv_timer_del(m_scan_timer);
             m_scan_timer = nullptr;
         }
-        
-        // stop_wifi();                    // deinit Wi-Fi
-        // stop NTP if running
-        if (m_ntp_started) {
-            esp_sntp_stop();
-            m_ntp_started = false;
-        }
-
-        // stop any ongoing scan
     }
 
 
@@ -193,6 +185,44 @@ namespace APP::UI {
         return false;
     }
 
+
+    void wifi_screen::toggle_change_from_manager(const bool enable) {
+
+        if (enable) {                                   // Turn Wi-Fi ON
+            if (!s_wifi_initialized) {                  
+
+                espwifi_Init();
+                esp_wifi_set_mode(WIFI_MODE_STA);
+                s_wifi_initialized = true;
+
+                if (m_is_visible) {                     // If the screen is visible, start scanning and timer
+                    start_scan_async();
+                    if (!m_scan_timer) {
+                        m_scan_timer = lv_timer_create(scan_timer_cb, 3000, this);
+                    }
+                    // update_ui_for_state();
+                }
+            }
+
+        } else {                                        // Turn Wi-Fi OFF
+            
+            stop_wifi();                                // This sets s_wifi_initialized = false and deinits everything
+            if (m_is_visible) {
+
+                if (m_scan_timer) {                     // Stop scanning timer
+                    lv_timer_del(m_scan_timer);
+                    m_scan_timer = nullptr;
+                }
+                clear_selection();                      // Clear selection and update UI
+                lv_obj_clean(m_list);
+                lv_label_set_text(m_status_label, "WiFi disabled");
+                if (m_connect_btn) lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+    }
+
+
+    bool wifi_screen::get_toggle_state() const { return s_wifi_initialized; }
 
     // cLASS PRIVATE ===================================================================================================
 
@@ -444,11 +474,10 @@ namespace APP::UI {
         if (m_wifi_state == wifi_state::connected || m_wifi_state == wifi_state::connecting)
             esp_wifi_disconnect();
 
-        // stop NTP if running
-        if (m_ntp_started) {
-            esp_sntp_stop();
-            m_ntp_started = false;
-        }
+        // Just call it unconditionally to be safe
+        esp_sntp_stop();
+        m_ntp_started = false;
+        ESP_LOGI(TAG, "NTP stopped");
 
         esp_wifi_stop();
         esp_wifi_deinit();

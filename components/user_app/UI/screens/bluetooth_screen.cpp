@@ -131,10 +131,15 @@ namespace APP::UI {
 
     void bluetooth_screen::show() {
 
-        if (m_screen)
-            lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
+        if (m_bluetooth_enabled)
+            start_scan();
         
-        start_scan();
+        else {                                  // Show disabled state
+            lv_obj_clean(m_list);
+            lv_label_set_text(m_status_label, "Bluetooth disabled");
+            clear_selection();
+        }
     }
 
 
@@ -142,17 +147,23 @@ namespace APP::UI {
 
         if (m_screen)
             lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
-        stop_bluetooth();
+        
+        if (m_scanning) {                       // Stop scanning but do NOT deinit BLE
+            m_scanning = false;
+            lv_timer_pause(m_update_timer);
+        }
+        clear_selection();                      // Optionally clear selection to avoid stale state
     }
 
 
     void bluetooth_screen::destroy() {
 
-        stop_bluetooth();
+        deinit_bluetooth();   // fully deinit BLE
         if (m_update_timer) {
             lv_timer_del(m_update_timer);
             m_update_timer = nullptr;
         }
+
         if (m_screen) {
             lv_obj_del(m_screen);
             m_screen = nullptr;
@@ -163,8 +174,22 @@ namespace APP::UI {
     lv_obj_t* bluetooth_screen::get_root()                  { return m_screen; }
 
 
-    // No custom event handling yet
     bool bluetooth_screen::handle_event(lv_event_t* e)      { return false; }
+
+    
+    void bluetooth_screen::toggle_change_from_manager(const bool enable) {
+            
+        if (enable) {
+            if (!m_bluetooth_enabled) {
+                init_bluetooth();
+                start_scan();               // start scanning if screen is visible
+            }
+        } else
+            deinit_bluetooth();                 // UI already updated inside deinit
+    }
+
+
+    bool bluetooth_screen::get_toggle_state() const { return m_bluetooth_enabled; }
 
     // CLASS PROTECTED =================================================================================================
 
@@ -314,6 +339,42 @@ namespace APP::UI {
         ESP_LOGI(TAG, "Bluetooth disabled");
     }
 
+
+    void bluetooth_screen::init_bluetooth() {
+
+        if (!m_bluetooth_enabled) {
+            
+            #ifdef ble_scan_Init                                // Initialize BLE controller
+                ble_scan_Init();
+            #else
+                esp_bt_controller_enable(ESP_BT_MODE_BTDM);     // fallback – enable BT controller
+            #endif
+
+            m_bluetooth_enabled = true;
+            ESP_LOGI(TAG, "Bluetooth enabled");
+        }
+    }
+
+
+    void bluetooth_screen::deinit_bluetooth() {
+
+        if (m_bluetooth_enabled) {
+
+            // Stop any ongoing scan
+            if (m_scanning) {
+                m_scanning = false;
+                lv_timer_pause(m_update_timer);
+            }
+            
+            clear_selection();                                  // Clear UI
+            lv_obj_clean(m_list);
+            lv_label_set_text(m_status_label, "Bluetooth disabled");
+            
+            ble_scan_Deinit();                                  // Deinit BLE
+            m_bluetooth_enabled = false;
+            ESP_LOGI(TAG, "Bluetooth disabled");
+        }
+    }
 
     void bluetooth_screen::timer_callback(lv_timer_t* timer) {
 

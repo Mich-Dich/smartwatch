@@ -126,6 +126,9 @@ namespace APP::UI::util {
     void create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
+    vec_2d lv_point_to_percent(const lv_point_t& p);
+
+
     swipe_direction get_swipe_direction(const touch_movement_data& data);
     
     // TEMPLATE DECLARATION =================================================================================

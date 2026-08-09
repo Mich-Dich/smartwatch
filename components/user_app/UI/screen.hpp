@@ -35,6 +35,12 @@ namespace APP::UI {
         // Event handling – screen can handle its own events
         virtual bool handle_event(lv_event_t* e) { return false; }
 
+        virtual bool display_toggle_in_manager() { return false; }
+
+        virtual void toggle_change_from_manager(const bool enable) {}
+
+        virtual bool get_toggle_state() const { return false; }
+
         // Get the root LVGL object of this screen
         virtual lv_obj_t* get_root() = 0;
     };

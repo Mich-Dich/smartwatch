@@ -55,12 +55,12 @@ namespace APP {
 
         APP::system::init();
         APP::UI::screen_manager::init();
-        APP::UI::screen_manager::register_screen("main", std::move(std::make_unique<APP::UI::main_screen>()));
-        APP::UI::screen_manager::register_screen("wifi", std::move(std::make_unique<APP::UI::wifi_screen>()));
-        APP::UI::screen_manager::register_screen("bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
-        APP::UI::screen_manager::register_screen("home_assist", std::move(std::make_unique<APP::UI::home_assist_screen>()));
-        APP::UI::screen_manager::register_screen("settings", std::move(std::make_unique<APP::UI::settings_screen>()));
-        APP::UI::screen_manager::switch_to("wifi");
+        APP::UI::screen_manager::register_screen("Main", std::move(std::make_unique<APP::UI::main_screen>()));
+        APP::UI::screen_manager::register_screen("Wifi", std::move(std::make_unique<APP::UI::wifi_screen>()));
+        APP::UI::screen_manager::register_screen("Bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
+        APP::UI::screen_manager::register_screen("Home Assist", std::move(std::make_unique<APP::UI::home_assist_screen>()));
+        APP::UI::screen_manager::register_screen("Settings", std::move(std::make_unique<APP::UI::settings_screen>()));
+        APP::UI::screen_manager::switch_to("Wifi");
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

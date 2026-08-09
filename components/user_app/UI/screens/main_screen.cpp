@@ -97,7 +97,7 @@ namespace APP::UI {
         lv_obj_set_style_text_font(m_second_label, &inconsolata_regular_48, 0); // or lv_font_montserrat_48
         lv_label_set_text(m_second_label, "00");
         // Align to the right of the minute label
-        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 15, -20);
+        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 0, -20);
 
         // --- Battery indicator (icon + percentage overlay) ---
         m_battery_cont = lv_obj_create(scr);

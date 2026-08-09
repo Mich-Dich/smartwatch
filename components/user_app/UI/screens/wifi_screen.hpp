@@ -27,13 +27,24 @@ namespace APP::UI {
 
         wifi_screen();
         ~wifi_screen() override;
-
+        
         void init() override;
+        
         void show() override;
+        
         void hide() override;
+        
         void destroy() override;
+        
         lv_obj_t* get_root() override { return m_screen; }
+        
         bool handle_event(lv_event_t* e) override;
+
+        bool display_toggle_in_manager() { return true; }
+
+        void toggle_change_from_manager(const bool enable);
+
+        bool get_toggle_state() const;
 
     private:
 
