@@ -36,6 +36,8 @@ namespace APP::UI {
 
         void destroy() override;
 
+        void recreate_ui() {}
+
         lv_obj_t* get_root() override { return m_screen; }
 
         bool handle_event(lv_event_t* e) override;

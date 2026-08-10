@@ -43,7 +43,7 @@ namespace APP::UI::util {
     }
 
 
-    void create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
+    lv_obj_t* create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
 
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
         lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
@@ -59,9 +59,10 @@ namespace APP::UI::util {
         size_t buf_size = LV_CANVAS_BUF_SIZE_TRUE_COLOR(scr_w, scr_h);
         lv_color_t* buf = (lv_color_t*)lv_mem_alloc(buf_size * sizeof(lv_color_t));  // cast required
         if (!buf)
-            return;
+            return canvas;
 
         lv_canvas_set_buffer(canvas, buf, scr_w, scr_h, LV_IMG_CF_TRUE_COLOR);
+        lv_obj_set_user_data(canvas, buf);                          // store buffer so we can free it later
         lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
 
         // ----- Create the geometric pattern -----
@@ -152,10 +153,11 @@ namespace APP::UI::util {
             lv_canvas_draw_line(canvas, cross1, 2, &line_dsc);
             lv_canvas_draw_line(canvas, cross2, 2, &line_dsc);
         }
+        return canvas;
     }
 
 
-    void create_geometric_pattern_1(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
+    lv_obj_t* create_geometric_pattern_1(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
 
         // Black background
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
@@ -173,8 +175,9 @@ namespace APP::UI::util {
         const size_t buf_size = LV_CANVAS_BUF_SIZE_TRUE_COLOR(scr_w, scr_h);
         lv_color_t* buf = (lv_color_t*)lv_mem_alloc(buf_size * sizeof(lv_color_t));
         if (!buf)
-            return;
+            return canvas;
         lv_canvas_set_buffer(canvas, buf, scr_w, scr_h, LV_IMG_CF_TRUE_COLOR);
+        lv_obj_set_user_data(canvas, buf);                          // store buffer so we can free it later
         lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
 
         /*----- Radar / tech pattern -----*/
@@ -271,10 +274,11 @@ namespace APP::UI::util {
             };
             lv_canvas_draw_line(canvas, tick, 2, &line_dsc);
         }
+        return canvas;
     }
 
 
-    void create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
+    lv_obj_t* create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2) {
 
         lv_obj_set_style_bg_color(screen, lv_color_black(), 0);     // Black background
         lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
@@ -293,9 +297,10 @@ namespace APP::UI::util {
         size_t buf_size = LV_CANVAS_BUF_SIZE_TRUE_COLOR(scr_w, scr_h);
         lv_color_t* buf = (lv_color_t*)lv_mem_alloc(buf_size * sizeof(lv_color_t));
         if (!buf)
-            return;
+            return canvas;
 
         lv_canvas_set_buffer(canvas, buf, scr_w, scr_h, LV_IMG_CF_TRUE_COLOR);
+        lv_obj_set_user_data(canvas, buf);                          // store buffer so we can free it later
         lv_canvas_fill_bg(canvas, lv_color_black(), LV_OPA_COVER);
 
         // Relative sizes based on the smaller screen dimension
@@ -380,13 +385,14 @@ namespace APP::UI::util {
             arc_dsc.width = radius * 2;
             lv_canvas_draw_arc(canvas, cx, cy, radius, 0, 3600, &arc_dsc);
         }
+        return canvas;
     }
 
 
     vec_2d lv_point_to_percent(const lv_point_t& p) {
 
         lv_disp_t* disp = lv_disp_get_default();
-        if (!disp) 
+        if (!disp)
             return {0, 0};
 
         lv_coord_t w = lv_disp_get_hor_res(disp);

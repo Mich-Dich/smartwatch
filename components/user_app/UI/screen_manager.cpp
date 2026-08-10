@@ -54,7 +54,7 @@ namespace APP::UI::screen_manager {
     static screen*                                                          s_current = nullptr;
 
     // @brief Name of the currently active screen.
-    static std::string                                                      s_current_name;
+    static std::string                                                      s_current_name{};
 
     // @brief Overlay container (full‑screen background) and its list child.
     static lv_obj_t*                                                        s_overlay_cont = nullptr;
@@ -82,9 +82,9 @@ namespace APP::UI::screen_manager {
     static uint8_t                                                          s_previous_brightness = 255;
 
     // @brief Lists of callbacks for sleep and wake events.
-    static std::vector<callback_func>                                       s_sleep_callbacks;
+    static std::vector<callback_func>                                       s_sleep_callbacks{};
 
-    static std::vector<callback_func>                                       s_wake_callbacks;
+    static std::vector<callback_func>                                       s_wake_callbacks{};
 
     // @brief LVGL timer for touch polling (100 ms) and associated touch state.
     static lv_timer_t*                                                      s_interaction_lv_timer = nullptr;
@@ -113,8 +113,7 @@ namespace APP::UI::screen_manager {
     // @brief Timer callback for battery voltage monitoring (every 1 second).
     static void full_second_cb(void* arg);
 
-    // @brief LVGL timer callback for touch polling (every 100 ms).
-    //        Reads the touch state, wakes the system on press, and detects down‑swipe.
+    // @brief LVGL timer callback for touch polling. Reads the touch state, wakes the system on press, and detects down‑swipe.
     static void interaction_timer_cb(lv_timer_t* timer);
 
     // @brief Create the overlay UI objects (if not already created).
@@ -163,7 +162,7 @@ namespace APP::UI::screen_manager {
         for (size_t i = 0; i < s_ordered_screens.size(); ++i)
             if (s_ordered_screens[i].first == name)
                 return static_cast<int>(i);
-        
+
         return -1;
     }
 
@@ -231,7 +230,7 @@ namespace APP::UI::screen_manager {
         }
 
         if (data.state == LV_INDEV_STATE_PRESSED) {
-            
+
             // ESP_LOGI(TAG, "STATE_PRESSED");
             wake_system_event();
             rearm_sleep_system();
@@ -241,7 +240,7 @@ namespace APP::UI::screen_manager {
                 s_touch_start = data.point;
             }
             s_touch_last = data.point;   // store last known point
-        
+
         } else {
 
             // ESP_LOGI(TAG, "TOUCH FINISHED");
@@ -363,9 +362,9 @@ namespace APP::UI::screen_manager {
 
             // ---- Optional toggle ----
             if (scr->display_toggle_in_manager()) {
+
                 lv_obj_t* sw = lv_switch_create(row);
                 lv_obj_set_size(sw, 50, 28);
-                // Use highlight_color for the switch's background when checked
                 lv_obj_set_style_bg_color(sw, highlight_color, LV_STATE_CHECKED);
 
                 if (scr->get_toggle_state())
@@ -660,6 +659,13 @@ namespace APP::UI::screen_manager {
 
 		if (index < s_wake_callbacks.size())
 			s_wake_callbacks[index] = nullptr;
+    }
+
+
+    void recreate_screens() {
+
+        for (const auto& [name, screen] : s_ordered_screens)
+            screen->recreate_ui();
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

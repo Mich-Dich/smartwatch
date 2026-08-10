@@ -70,51 +70,7 @@ namespace APP::UI {
         lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
 
-        // geometric background (same as bluetooth)
-        APP::UI::util::create_geometric_pattern_0(
-            m_screen,
-            lv_color_mix(highlight_color, lv_color_hex(0x000000), 80),
-            lv_color_mix(support_color, lv_color_hex(0x000000), 80)
-        );
-
-        // status label
-        m_status_label = lv_label_create(m_screen);
-        lv_label_set_text(m_status_label, "WiFi networks");
-        lv_obj_set_style_text_color(m_status_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_status_label, &inconsolata_regular_26, 0);
-        lv_obj_align(m_status_label, LV_ALIGN_TOP_MID, 0, 20);
-
-        // list container – transparent
-        m_list = lv_list_create(m_screen);
-        lv_obj_set_size(m_list, LV_PCT(90), LV_PCT(70));
-        lv_obj_align(m_list, LV_ALIGN_TOP_MID, 0, 70);
-        lv_obj_set_style_bg_opa(m_list, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(m_list, 0, 0);
-        lv_obj_set_style_pad_row(m_list, 4, 0);
-        lv_obj_add_flag(m_list, LV_OBJ_FLAG_EVENT_BUBBLE);
-
-        // bottom toolbar with Scan button
-        lv_obj_t* btn_container = lv_obj_create(m_screen);
-        lv_obj_set_size(btn_container, LV_PCT(90), LV_SIZE_CONTENT);
-        lv_obj_align(btn_container, LV_ALIGN_BOTTOM_MID, 0, -20);
-        lv_obj_set_style_bg_opa(btn_container, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(btn_container, 0, 0);
-        lv_obj_clear_flag(btn_container, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_set_flex_flow(btn_container, LV_FLEX_FLOW_ROW);
-        lv_obj_set_flex_align(btn_container, LV_FLEX_ALIGN_SPACE_EVENLY, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-        // floating Connect button (hidden initially)
-        m_connect_btn = lv_btn_create(m_screen);
-        lv_obj_set_size(m_connect_btn, 40, 36);
-        lv_obj_set_style_bg_color(m_connect_btn, lv_color_hex(0x0066FF), 0);
-        lv_obj_set_style_radius(m_connect_btn, 4, 0);
-        lv_obj_add_event_cb(m_connect_btn, connect_btn_event_cb, LV_EVENT_CLICKED, this);
-        lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
-
-        lv_obj_t* connect_label = lv_label_create(m_connect_btn);
-        lv_label_set_text(connect_label, LV_SYMBOL_WIFI);
-        lv_obj_set_style_text_color(connect_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_center(connect_label);
+        create_ui_elements();                                               // Create all UI elements (background, status, list, connect button)
 
         // register WiFi event handlers
         esp_event_handler_instance_t instance_any;
@@ -122,11 +78,8 @@ namespace APP::UI {
         esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, wifi_event_handler, this, &instance_any);
         esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, ip_event_handler, this, &instance_ip);
 
-        // queue for UI updates
-        m_ui_queue = xQueueCreate(5, sizeof(ui_update_msg));
-
-        // timer to process UI queue every 100 ms
-        lv_timer_create([](lv_timer_t* timer) {
+        m_ui_queue = xQueueCreate(5, sizeof(ui_update_msg));                // queue for UI updates
+        lv_timer_create([](lv_timer_t* timer) {                             // timer to process UI queue every 100 ms
             wifi_screen* self = static_cast<wifi_screen*>(timer->user_data);
             self->process_ui_queue();
             self->check_ntp_sync();
@@ -173,11 +126,41 @@ namespace APP::UI {
     void wifi_screen::destroy() {
 
         stop_wifi();
+            
         if (m_screen) {
-            lv_obj_del(m_screen);
+            lv_obj_del(m_screen);      // deletes all children, including the canvas
             m_screen = nullptr;
         }
+        m_pattern_canvas = nullptr;    // already deleted, just clear the dangling pointer
         m_networks.clear();
+    }
+
+        
+    void wifi_screen::recreate_ui() {
+
+        if (!m_screen)
+            return;
+
+        const bool was_selected = m_device_selected;                // Save the current selection state (index and whether selected)
+        const size_t selected_idx = m_selected_index;
+
+        lv_obj_clean(m_screen);                                     // Delete all children of the root screen (this deletes background, list, labels, button)
+
+        // Reset UI pointers – they are now dangling
+        m_pattern_canvas = nullptr;
+        m_status_label = nullptr;
+        m_list = nullptr;
+        m_connect_btn = nullptr;
+
+        create_ui_elements();                                       // Recreate the UI elements with the current (possibly changed) colors
+        populate_list();                                            // Repopulate the network list from the stored `m_networks`
+
+        if (was_selected && selected_idx < m_networks.size())       // Restore selection if it was valid and still exists in the new list
+            select_network_by_index(selected_idx);
+        else
+            clear_selection();                                      // clears any leftover highlight and hides connect button
+
+        update_status("WiFi networks");                             // Reset status label to a neutral message (will be updated by next scan)
     }
 
 
@@ -191,7 +174,7 @@ namespace APP::UI {
     void wifi_screen::toggle_change_from_manager(const bool enable) {
 
         if (enable) {                                   // Turn Wi-Fi ON
-            if (!s_wifi_initialized) {                  
+            if (!s_wifi_initialized) {
 
                 espwifi_Init();
                 esp_wifi_set_mode(WIFI_MODE_STA);
@@ -207,7 +190,7 @@ namespace APP::UI {
             }
 
         } else {                                        // Turn Wi-Fi OFF
-            
+
             stop_wifi();                                // This sets s_wifi_initialized = false and deinits everything
             if (m_is_visible) {
 
@@ -521,6 +504,49 @@ namespace APP::UI {
         lv_obj_move_foreground(m_connect_btn);
 
         m_pending_selection_ssid = m_networks[idx];
+    }
+
+
+    void wifi_screen::create_ui_elements() {
+
+        if (!m_screen)
+            return;
+
+        // geometric background
+        m_pattern_canvas = APP::UI::util::create_geometric_pattern_0(
+            m_screen,
+            lv_color_mix(highlight_color, lv_color_hex(0x000000), 80),
+            lv_color_mix(support_color, lv_color_hex(0x000000), 80)
+        );
+
+        // status label
+        m_status_label = lv_label_create(m_screen);
+        lv_label_set_text(m_status_label, "WiFi networks");
+        lv_obj_set_style_text_color(m_status_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_status_label, &inconsolata_regular_26, 0);
+        lv_obj_align(m_status_label, LV_ALIGN_TOP_MID, 0, 20);
+
+        // list container
+        m_list = lv_list_create(m_screen);
+        lv_obj_set_size(m_list, LV_PCT(90), LV_PCT(70));
+        lv_obj_align(m_list, LV_ALIGN_TOP_MID, 0, 70);
+        lv_obj_set_style_bg_opa(m_list, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(m_list, 0, 0);
+        lv_obj_set_style_pad_row(m_list, 4, 0);
+        lv_obj_add_flag(m_list, LV_OBJ_FLAG_EVENT_BUBBLE);
+
+        // connect button (hidden initially)
+        m_connect_btn = lv_btn_create(m_screen);
+        lv_obj_set_size(m_connect_btn, 40, 36);
+        lv_obj_set_style_bg_color(m_connect_btn, highlight_color, 0);
+        lv_obj_set_style_radius(m_connect_btn, 4, 0);
+        lv_obj_add_event_cb(m_connect_btn, connect_btn_event_cb, LV_EVENT_CLICKED, this);
+        lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+
+        lv_obj_t* connect_label = lv_label_create(m_connect_btn);
+        lv_label_set_text(connect_label, LV_SYMBOL_WIFI);
+        lv_obj_set_style_text_color(connect_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_center(connect_label);
     }
 
     // static callbacks ------------------------------------------------------------------------------------------------

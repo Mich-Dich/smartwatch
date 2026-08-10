@@ -13,7 +13,8 @@ namespace APP::system {
 
     // CONSTANTS =======================================================================================================
 
-    static constexpr f32                        CHARGING_VOLTAGE_OFFSET = 0.40f;
+    // Voltage difference between non charge and charge. not totally accurate because of non linear curve, but good enough
+    static constexpr f32                        CHARGING_VOLTAGE_OFFSET = 0.485f;
 
     // MACROS ==========================================================================================================
 
@@ -52,7 +53,7 @@ namespace APP::system {
             };
             ESP_ERROR_CHECK(adc_cali_create_scheme_curve_fitting(&cali_config, &cali_handle));
         #endif
-        
+
         adc_oneshot_unit_init_cfg_t init_config1 = {
             .unit_id = ADC_UNIT_1,
             .clk_src = ADC_RTC_CLK_SRC_DEFAULT,
@@ -84,7 +85,7 @@ namespace APP::system {
                 *value = ((f32)adc_data * 3.3/4096) * 3;
             #endif
             // *data = adc_data;
-        
+
         } else {
 
             *value = 0;
@@ -157,10 +158,10 @@ namespace APP::system {
         return 100; // fallback
     }
 
-    
+
     bool is_charger_connected()                         { return s_charger_connected; }
 
-    
+
     void set_charger_connected(const bool connected)    { s_charger_connected = connected; }
 
     // CLASS IMPLEMENTATION ============================================================================================

@@ -37,7 +37,7 @@ namespace APP::UI {
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
-    
+
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
     // FUNCTION IMPLEMENTATION =========================================================================================
@@ -48,15 +48,13 @@ namespace APP::UI {
 
 
     bluetooth_screen::~bluetooth_screen() { destroy(); }
-    
+
     // CLASS PUBLIC ====================================================================================================
 
     void bluetooth_screen::init() {
 
         if (m_screen)
-            return;   // already initialised
-
-        ESP_LOGI(TAG, "Initialising bluetooth screen");
+            return;
 
         m_screen = lv_obj_create(nullptr);
         lv_obj_set_style_bg_color(m_screen, lv_color_hex(0x000000), 0);
@@ -64,9 +62,141 @@ namespace APP::UI {
         lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_SCROLLABLE);
         lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
 
-        APP::UI::util::create_geometric_pattern_0(
+        create_ui_elements();                   // builds all widgets
+
+        m_update_timer = lv_timer_create(timer_callback, 500, this);
+        lv_timer_pause(m_update_timer);
+
+        clear_seen_macs();
+        ESP_LOGI(TAG, "bluetooth_screen initialised");
+    }
+
+
+    void bluetooth_screen::show() {
+
+        lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
+        if (m_bluetooth_enabled)
+            start_scan();
+
+        else {                                  // Show disabled state
+            lv_obj_clean(m_list);
+            lv_label_set_text(m_status_label, "Bluetooth disabled");
+            clear_selection();
+        }
+    }
+
+
+    void bluetooth_screen::hide() {
+
+        if (m_screen)
+            lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
+
+        if (m_scanning) {                       // Stop scanning but do NOT deinit BLE
+            m_scanning = false;
+            lv_timer_pause(m_update_timer);
+        }
+        clear_selection();                      // Optionally clear selection to avoid stale state
+    }
+
+
+    void bluetooth_screen::destroy() {
+
+        // Stop timer
+        if (m_update_timer)
+            lv_timer_del(m_update_timer);
+
+        void* buffer_to_free = nullptr;             // Free canvas buffer after deleting screen
+        if (m_pattern_canvas)
+            buffer_to_free = lv_obj_get_user_data(m_pattern_canvas);
+
+        if (m_screen)
+            lv_obj_del(m_screen);
+
+        if (buffer_to_free)
+            lv_mem_free(buffer_to_free);
+
+        if (m_bluetooth_enabled)                    // Deinit Bluetooth if enabled
+            deinit_bluetooth();
+
+        buffer_to_free = nullptr;
+        m_pattern_canvas = nullptr;
+        m_update_timer = nullptr;
+        m_screen = nullptr;
+    }
+
+
+    void bluetooth_screen::recreate_ui() {
+
+        if (!m_screen)
+            return;
+
+        lv_timer_pause(m_update_timer);                 // Pause timer to avoid updates during recreation
+        void* buffer_to_free = nullptr;                 // Retrieve buffer pointer (will free after deletion)
+        if (m_pattern_canvas)
+            buffer_to_free = lv_obj_get_user_data(m_pattern_canvas);
+
+        u32 child_cnt = lv_obj_get_child_cnt(m_screen); // Delete all children of the screen
+        std::vector<lv_obj_t*> to_delete;
+        to_delete.reserve(child_cnt);
+        for (u32 i = 0; i < child_cnt; ++i)
+            to_delete.push_back(lv_obj_get_child(m_screen, i));
+
+        for (lv_obj_t* child : to_delete)
+            lv_obj_del(child);
+
+
+        if (buffer_to_free) {                           // Free the canvas buffer now that the canvas is gone
+            lv_mem_free(buffer_to_free);
+        }
+        
+        // Reset pointers that will be re‑assigned
+        buffer_to_free = nullptr;
+        m_pattern_canvas = nullptr;
+        m_list = nullptr;
+        m_scan_btn = nullptr;
+        m_status_label = nullptr;
+        m_adv_btn = nullptr;
+        m_connect_btn = nullptr;
+        m_selected_item = nullptr;
+
+        create_ui_elements();                           // Rebuild UI
+        sync_ui();                                      // Restore device list and selection
+        if (m_scanning)                                 // Resume timer if scanning
+            lv_timer_resume(m_update_timer);
+
+        ESP_LOGI(TAG, "Bluetooth UI recreated");
+    }
+
+
+    lv_obj_t* bluetooth_screen::get_root()                  { return m_screen; }
+
+
+    bool bluetooth_screen::handle_event(lv_event_t* e)      { return false; }
+
+
+    void bluetooth_screen::toggle_change_from_manager(const bool enable) {
+
+        if (enable) {
+            if (!m_bluetooth_enabled) {
+                init_bluetooth();
+                start_scan();               // start scanning if screen is visible
+            }
+        } else
+            deinit_bluetooth();                 // UI already updated inside deinit
+    }
+
+
+    bool bluetooth_screen::get_toggle_state() const { return m_bluetooth_enabled; }
+
+    // CLASS PROTECTED =================================================================================================
+
+    // CLASS PRIVATE ===================================================================================================
+
+    void bluetooth_screen::create_ui_elements() {
+
+        m_pattern_canvas = APP::UI::util::create_geometric_pattern_0(
             m_screen,
-            lv_color_mix(highlight_color, lv_color_hex(0x000000), 80), 
+            lv_color_mix(highlight_color, lv_color_hex(0x000000), 80),
             lv_color_mix(support_color, lv_color_hex(0x000000), 80)
         );
 
@@ -119,81 +249,106 @@ namespace APP::UI {
         lv_label_set_text(connect_label, LV_SYMBOL_BLUETOOTH);      // use symbol
         lv_obj_set_style_text_color(connect_label, lv_color_hex(0xFFFFFF), 0);
         lv_obj_center(connect_label);
-
-        // Timer
-        m_update_timer = lv_timer_create(timer_callback, 500, this);
-        lv_timer_pause(m_update_timer);
-
-        clear_seen_macs();
-        ESP_LOGI(TAG, "bluetooth_screen initialised");
     }
 
+    void bluetooth_screen::sync_ui() {
 
-    void bluetooth_screen::show() {
+        // Clear list and repopulate from m_devices
+        lv_obj_clean(m_list);
 
-        lv_obj_clear_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
-        if (m_bluetooth_enabled)
-            start_scan();
-        
-        else {                                  // Show disabled state
-            lv_obj_clean(m_list);
-            lv_label_set_text(m_status_label, "Bluetooth disabled");
-            clear_selection();
+        for (size_t i = 0; i < m_device_count; ++i) {
+            ble_device_t& dev = m_devices[i];
+            char display[64];
+            if (dev.name[0] != '\0')
+                snprintf(display, sizeof(display), "%s ", dev.name);
+            else
+                snprintf(display, sizeof(display), "%02X:%02X:%02X:%02X:%02X:%02X",
+                    dev.bda[0], dev.bda[1], dev.bda[2], dev.bda[3], dev.bda[4], dev.bda[5]);
+
+            lv_obj_t* btn = lv_list_add_btn(m_list, nullptr, display);
+            lv_obj_set_style_text_color(btn, lv_color_hex(0xFFFFFF), 0);
+            lv_obj_set_style_bg_color(btn, lv_color_hex(0x000000), 0);
+            lv_obj_set_style_bg_opa(btn, LV_OPA_TRANSP, 0);
+            lv_obj_set_style_border_width(btn, 1, 0);
+            lv_obj_set_style_border_color(btn, lv_color_hex(0x333333), 0);
+            lv_obj_set_style_border_side(btn, LV_BORDER_SIDE_BOTTOM, 0);
+            lv_obj_add_flag(btn, LV_OBJ_FLAG_EVENT_BUBBLE);
+
+            // Store pointer to device data (stable)
+            lv_obj_set_user_data(btn, &m_devices[i]);
+
+            // Click event
+            lv_obj_add_event_cb(btn, [](lv_event_t* e) {
+                lv_obj_t* btn = lv_event_get_target(e);
+                bluetooth_screen* screen = (bluetooth_screen*)lv_event_get_user_data(e);
+                ble_device_t* dev = (ble_device_t*)lv_obj_get_user_data(btn);
+                if (dev) {
+                    // Find index in m_devices
+                    size_t idx = (size_t)(dev - screen->m_devices);
+                    if (idx < screen->m_device_count) {
+                        screen->clear_selection();
+                        screen->m_selected_index = idx;
+                        screen->m_selected_device = *dev;
+                        screen->m_device_selected = true;
+                        screen->m_selected_item = btn;
+                        // Highlight
+                        lv_obj_set_style_bg_opa(btn, LV_OPA_50, 0);
+                        lv_obj_set_style_bg_color(btn, lv_color_hex(0xFFFFFF), 0);
+                        // Reparent connect button
+                        lv_obj_set_parent(screen->m_connect_btn, btn);
+                        lv_obj_align(screen->m_connect_btn, LV_ALIGN_RIGHT_MID, 10, 0);
+                        lv_obj_clear_flag(screen->m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+                        lv_obj_move_foreground(screen->m_connect_btn);
+                        ESP_LOGI(TAG, "Selected device: %s", dev->name[0] ? dev->name : "Unknown");
+                    }
+                }
+            }, LV_EVENT_CLICKED, this);
         }
-    }
 
+        // Restore selection if any
+        if (m_device_selected && m_selected_index < m_device_count) {
 
-    void bluetooth_screen::hide() {
-
-        if (m_screen)
-            lv_obj_add_flag(m_screen, LV_OBJ_FLAG_HIDDEN);
-        
-        if (m_scanning) {                       // Stop scanning but do NOT deinit BLE
-            m_scanning = false;
-            lv_timer_pause(m_update_timer);
-        }
-        clear_selection();                      // Optionally clear selection to avoid stale state
-    }
-
-
-    void bluetooth_screen::destroy() {
-
-        deinit_bluetooth();   // fully deinit BLE
-        if (m_update_timer) {
-            lv_timer_del(m_update_timer);
-            m_update_timer = nullptr;
-        }
-
-        if (m_screen) {
-            lv_obj_del(m_screen);
-            m_screen = nullptr;
-        }
-    }
-
-
-    lv_obj_t* bluetooth_screen::get_root()                  { return m_screen; }
-
-
-    bool bluetooth_screen::handle_event(lv_event_t* e)      { return false; }
-
-    
-    void bluetooth_screen::toggle_change_from_manager(const bool enable) {
-            
-        if (enable) {
-            if (!m_bluetooth_enabled) {
-                init_bluetooth();
-                start_scan();               // start scanning if screen is visible
+            // Find the button for that device by iterating children of list
+            u32 child_cnt = lv_obj_get_child_cnt(m_list);
+            for (u32 i = 0; i < child_cnt; ++i) {
+                lv_obj_t* child = lv_obj_get_child(m_list, i);
+                ble_device_t* dev = (ble_device_t*)lv_obj_get_user_data(child);
+                if (dev == &m_devices[m_selected_index]) {
+                    // Apply selection
+                    m_selected_item = child;
+                    lv_obj_set_style_bg_opa(child, LV_OPA_50, 0);
+                    lv_obj_set_style_bg_color(child, lv_color_hex(0xFFFFFF), 0);
+                    lv_obj_set_parent(m_connect_btn, child);
+                    lv_obj_align(m_connect_btn, LV_ALIGN_RIGHT_MID, 10, 0);
+                    lv_obj_clear_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+                    lv_obj_move_foreground(m_connect_btn);
+                    break;
+                }
             }
+
+        } else {
+
+            // No selection: hide connect button and reparent to screen
+            if (m_connect_btn) {
+                lv_obj_set_parent(m_connect_btn, m_screen);
+                lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
+            }
+        }
+
+        // Update status label
+        if (m_scanning)
+            lv_label_set_text(m_status_label, "Scanning...");
+
+        else if (m_bluetooth_enabled) {
+
+            char status[64];
+            snprintf(status, sizeof(status), "Found %zu device%s", m_device_count, (m_device_count > 1) ? "s" : "");
+            lv_label_set_text(m_status_label, status);
+
         } else
-            deinit_bluetooth();                 // UI already updated inside deinit
+            lv_label_set_text(m_status_label, "Bluetooth disabled");
     }
 
-
-    bool bluetooth_screen::get_toggle_state() const { return m_bluetooth_enabled; }
-
-    // CLASS PROTECTED =================================================================================================
-
-    // CLASS PRIVATE ===================================================================================================
 
     void bluetooth_screen::start_scan() {
 
@@ -317,8 +472,8 @@ namespace APP::UI {
             m_selected_item = nullptr;
         }
         m_device_selected = false;
+        m_selected_index = 0;
         memset(&m_selected_device, 0, sizeof(m_selected_device));
-        // Reparent to a safe parent (the screen) and hide
         if (m_connect_btn) {
             lv_obj_set_parent(m_connect_btn, m_screen);
             lv_obj_add_flag(m_connect_btn, LV_OBJ_FLAG_HIDDEN);
@@ -327,7 +482,7 @@ namespace APP::UI {
 
 
     void bluetooth_screen::stop_bluetooth() {
-            
+
         if (m_scanning) {
             m_scanning = false;
             lv_timer_pause(m_update_timer);
@@ -343,7 +498,7 @@ namespace APP::UI {
     void bluetooth_screen::init_bluetooth() {
 
         if (!m_bluetooth_enabled) {
-            
+
             #ifdef ble_scan_Init                                // Initialize BLE controller
                 ble_scan_Init();
             #else
@@ -365,23 +520,24 @@ namespace APP::UI {
                 m_scanning = false;
                 lv_timer_pause(m_update_timer);
             }
-            
+
             clear_selection();                                  // Clear UI
             lv_obj_clean(m_list);
             lv_label_set_text(m_status_label, "Bluetooth disabled");
-            
+
             ble_scan_Deinit();                                  // Deinit BLE
             m_bluetooth_enabled = false;
             ESP_LOGI(TAG, "Bluetooth disabled");
         }
     }
 
+
     void bluetooth_screen::timer_callback(lv_timer_t* timer) {
 
         auto* screen = static_cast<bluetooth_screen*>(timer->user_data);
         if (screen)
             screen->update_device_list();
- 
+
         // if (ble_is_connected())
         //     lv_label_set_text(m_status_label, "Connected");
         // else if (m_scanning)
@@ -404,7 +560,7 @@ namespace APP::UI {
         auto* screen = static_cast<bluetooth_screen*>(lv_event_get_user_data(e));
         if (!screen)
             return;
-        
+
         bool is_adv = ble_is_advertising();
         if (is_adv) {
 
@@ -412,7 +568,7 @@ namespace APP::UI {
             lv_obj_set_style_bg_color(screen->m_adv_btn, lv_color_hex(0x00AA00), 0);
             lv_obj_t* label = lv_obj_get_child(screen->m_adv_btn, 0);
             lv_label_set_text(label, "Advertise");
-        
+
         } else {
 
             ble_advertising_start("ESP32_Smartwatch", 0x00FF); // use your desired name and service UUID
@@ -420,7 +576,7 @@ namespace APP::UI {
             lv_obj_t* label = lv_obj_get_child(screen->m_adv_btn, 0);
             lv_label_set_text(label, "Stop Adv");
         }
-    
+
     }
 
 
@@ -430,14 +586,12 @@ namespace APP::UI {
         if (!screen)
             return;
 
-        if (screen->m_device_selected) {
-
-            esp_err_t err = ble_connect_to_device(screen->m_selected_device.bda);
+        if (screen->m_device_selected && screen->m_selected_index < screen->m_device_count) {
+            esp_err_t err = ble_connect_to_device(screen->m_devices[screen->m_selected_index].bda);
             if (err == ESP_OK)
                 lv_label_set_text(screen->m_status_label, "Connecting...");
             else
                 lv_label_set_text(screen->m_status_label, "Connection failed");
-
         } else
             lv_label_set_text(screen->m_status_label, "Select a device first");
     }

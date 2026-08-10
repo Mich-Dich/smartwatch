@@ -41,7 +41,10 @@ namespace APP::UI {
         void hide() override;
 
 
-        void destroy() override;
+        void destroy() override {}
+
+
+        void recreate_ui();
 
 
         lv_obj_t* get_root() override;
@@ -57,15 +60,17 @@ namespace APP::UI {
 
     private:
 
-        
+        void create_ui_elements();
+
+
         // @brief Start the internal timer that updates the clock every second.
         void start_clock();
 
-        
+
         // @brief Update the clock display (called every second by the timer).
         void update_clock();
 
-        
+
         // @brief Draw decorative geometric elements on the screen (no longer used; kept for reference).
         void draw_decorations(lv_obj_t* parent);
 
@@ -75,10 +80,11 @@ namespace APP::UI {
         lv_obj_t*               m_minute_label = nullptr;
         lv_obj_t*               m_second_label = nullptr;
         lv_obj_t*               m_battery_label = nullptr;
-        lv_obj_t*               m_time_label = nullptr; 
+        lv_obj_t*               m_time_label = nullptr;
         lv_obj_t*               m_battery_cont = nullptr;       // container for battery icon + percentage
         lv_obj_t*               m_battery_icon = nullptr;       // the battery symbol label
         lv_obj_t*               m_battery_pct_label = nullptr;  // percentage text overlay
+        lv_obj_t*               m_pattern_canvas = nullptr;
 
         static APP::clock       m_clock;
         static constexpr u8     BATTERY_BUFFER_SIZE = 5;

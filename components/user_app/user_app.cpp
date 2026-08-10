@@ -60,7 +60,7 @@ namespace APP {
         APP::UI::screen_manager::register_screen("Bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
         APP::UI::screen_manager::register_screen("Home Assist", std::move(std::make_unique<APP::UI::home_assist_screen>()));
         APP::UI::screen_manager::register_screen("Settings", std::move(std::make_unique<APP::UI::settings_screen>()));
-        APP::UI::screen_manager::switch_to("Wifi");
+        APP::UI::screen_manager::switch_to("Main");
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

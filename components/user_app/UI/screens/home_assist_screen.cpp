@@ -206,18 +206,18 @@ namespace APP::UI {
     // CLASS PRIVATE ===================================================================================================
 
     bool home_assist_screen::read_yaml_data(std::string* yaml_data) {
-        
+
         bool yaml_success = false;
         APP::serializer::yaml(yaml_data, "system", APP::serializer::option::load, &yaml_success)
             .sub_section("cpu", [&](APP::serializer::yaml& cpu_section) {
                 cpu_section.entry(KEY_VALUE(m_server_pc_data.cpu_data.temperature_celsius))
                     .entry(KEY_VALUE(m_server_pc_data.cpu_data.usage_percent));
             })
-            
+
             .sub_section("gpu", [&](APP::serializer::yaml& cpu_section) {
                 cpu_section.entry(KEY_VALUE(m_server_pc_data.gpu_data.temperature_celsius));
             })
-            
+
             .sub_section("memory", [&](APP::serializer::yaml& cpu_section) {
                 cpu_section.entry(KEY_VALUE(m_server_pc_data.memory_data.percent))
                     .entry(KEY_VALUE(m_server_pc_data.memory_data.total_gb))

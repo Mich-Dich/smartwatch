@@ -24,7 +24,7 @@ namespace APP::UI::screen_manager {
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================
-    
+
     // @brief Initialise the screen manager (timers, touch polling, etc.).
     //        Must be called once at startup.
     void init();
@@ -35,7 +35,7 @@ namespace APP::UI::screen_manager {
     // @param screen  Unique pointer to the screen instance (takes ownership).
     void register_screen(const std::string& name, std::unique_ptr<screen> screen);
 
-    
+
     // @brief Switch to the screen with the given name.
     // @param name  Identifier of the screen to switch to.
     void switch_to(const std::string& name);
@@ -76,5 +76,8 @@ namespace APP::UI::screen_manager {
     // @brief Remove a previously registered wake callback.
     // @param index  Index returned by add_wake_callback().
     bool is_charger_connected();
+
+
+    void recreate_screens();
 
 }

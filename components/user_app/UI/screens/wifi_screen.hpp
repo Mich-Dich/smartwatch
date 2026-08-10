@@ -28,17 +28,19 @@ namespace APP::UI {
 
         wifi_screen();
         ~wifi_screen() override;
-        
+
         void init() override;
-        
+
         void show() override;
-        
+
         void hide() override;
-        
+
         void destroy() override;
-        
-        lv_obj_t* get_root() override { r                                                 m_screen; }
-        
+
+        void recreate_ui() override;
+
+        lv_obj_t* get_root() override { return m_screen; }
+
         bool handle_event(lv_event_t* e) override;
 
 
@@ -48,9 +50,9 @@ namespace APP::UI {
 
         // @brief Enable or disable WiFi from the manager overlay.
         // @param enable  True to turn WiFi on, false to turn it off.
-        void toggle_change_fro              m_manager(const bool enable);
+        void toggle_change_from_manager(const bool enable);
 
-        
+
         // @brief Get the current WiFi enabled state.
         // @return  True if WiFi is initialised and active.
         bool get_toggle_state() const;
@@ -99,7 +101,7 @@ namespace APP::UI {
         // @brief Update the status label with a new text (string or C‑string).
         void update_status(const char* text);
 
-        
+
         // @brief Update the status label with a new text (string or C‑string).
         void update_status(const std::string& text);
 
@@ -120,6 +122,9 @@ namespace APP::UI {
         void select_network_by_index(size_t idx);
 
 
+        void create_ui_elements();
+
+
         // @brief Timer callback for periodic scanning (every 3 seconds).
         static void scan_timer_cb(lv_timer_t* timer);
 
@@ -131,13 +136,14 @@ namespace APP::UI {
         // @brief WiFi event handler (scan done, connected, disconnected).
         static void wifi_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
-        
+
         // @brief IP event handler (got IP).
         static void ip_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 
         // ----- UI objects -----
         lv_obj_t*                           m_screen = nullptr;             // root screen object
+        lv_obj_t*                           m_pattern_canvas = nullptr;
         lv_obj_t*                           m_list = nullptr;               // list of networks
         lv_obj_t*                           m_status_label = nullptr;       // status text
         lv_obj_t*                           m_connect_btn = nullptr;        // floating connect button (appears next to selected item)

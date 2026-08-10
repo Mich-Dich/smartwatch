@@ -34,7 +34,7 @@ namespace APP::UI::util {
         i8          y{};
 
     };
-    
+
 
     // Equality / inequality
     inline bool operator==(const vec_2d& a, const vec_2d& b)   { return a.x == b.x && a.y == b.y; }
@@ -68,28 +68,28 @@ namespace APP::UI::util {
 
         touch_movement_data(vec_2d touch_start, vec_2d touch_size, vec_2d touch_stop, vec_2d touch_max, vec_2d touch_min)
             : touch_start(touch_start), touch_size(touch_size), touch_stop(touch_stop), touch_max(touch_max), touch_min(touch_min) {}
-        
+
         touch_movement_data(vec_2d point)
             : touch_start(point), touch_size({}), touch_stop(point), touch_max(point), touch_min(point) {}
-        
+
         touch_movement_data()
             : touch_start({}), touch_size({}), touch_stop({}), touch_max({}), touch_min({}) {}
-        
+
 
         void update_size()  { touch_size = touch_max - touch_min; }
 
-        void update_min(const vec_2d point)   { 
-            
+        void update_min(const vec_2d point)   {
+
             if (point.x < touch_min.x)      touch_min.x = point.x;
             if (point.y < touch_min.y)      touch_min.y = point.y;
         }
 
-        void update_max(const vec_2d point)   { 
-            
+        void update_max(const vec_2d point)   {
+
             if (point.x > touch_max.x)      touch_max.x = point.x;
             if (point.y > touch_max.y)      touch_max.y = point.y;
         }
-        
+
         vec_2d              touch_start{};   // first touch point (percent)
         vec_2d              touch_size{};    // difference between max and min
         vec_2d              touch_stop{};    // last touch point before release
@@ -112,21 +112,21 @@ namespace APP::UI::util {
     // @param screen  The LVGL screen object to style.
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
     // @param color2  Secondary color (used for strokes, e.g. white/cyan).
-    void create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+    lv_obj_t* create_geometric_pattern_0(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
     // @brief Create a black background with a geometric pattern drawn in two colors.
     // @param screen  The LVGL screen object to style.
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
     // @param color2  Secondary color (used for strokes, e.g. white/cyan).
-    void create_geometric_pattern_1(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+    lv_obj_t* create_geometric_pattern_1(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
     // @brief Create a black background with a geometric pattern drawn in two colors.
     // @param screen  The LVGL screen object to style.
     // @param color1  Primary color (used for fills, e.g. dark grey/blue).
     // @param color2  Secondary color (used for strokes, e.g. white/cyan).
-    void create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
+    lv_obj_t* create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
     // @brief Convert an LVGL point (pixel coordinates) to percent (0‑100) of display size.

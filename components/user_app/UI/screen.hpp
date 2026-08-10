@@ -20,12 +20,12 @@ namespace APP::UI {
     // TEMPLATE DECLARATION =================================================================================
 
     // CLASS DECLARATION ====================================================================================
-    
+
     // @brief Abstract base class for all screens.
     //        Each screen manages its own LVGL UI objects and lifecycle.
     class screen {
     public:
-    
+
         virtual ~screen() = default;
 
 
@@ -44,6 +44,10 @@ namespace APP::UI {
 
         // @brief Free all resources used by this screen.
         virtual void destroy() = 0;
+
+
+        // @brief recreate the UI after some values have changed, like highlight-color
+        virtual void recreate_ui() = 0;
 
 
         // @brief Handle LVGL events that are not handled by the screen's own callbacks.

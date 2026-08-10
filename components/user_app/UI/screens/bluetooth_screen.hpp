@@ -32,20 +32,22 @@ namespace APP::UI {
         bluetooth_screen();
         ~bluetooth_screen() override;
 
-        
+
         void init() override;
-        
+
         void show() override;
-        
+
         void hide() override;
-        
+
         void destroy() override;
-        
+
+        void recreate_ui();
+
         lv_obj_t* get_root() override;
 
         bool handle_event(lv_event_t* e) override;
 
-        
+
         // @brief Show a toggle in the manager overlay to enable/disable Bluetooth.
         bool display_toggle_in_manager() { return true; }
 
@@ -54,12 +56,19 @@ namespace APP::UI {
         // @param enable  True to turn Bluetooth on, false to turn it off.
         void toggle_change_from_manager(const bool enable);
 
-        
+
         // @brief Get the current Bluetooth enabled state.
         // @return  True if Bluetooth is initialised and active.
         bool get_toggle_state() const;
 
     private:
+
+        // UI creation and sync
+        void create_ui_elements();
+
+
+        void sync_ui();
+
 
         // @brief Check if a given MAC address has already been seen.
         bool is_mac_seen(const uint8_t* bda);
@@ -89,10 +98,10 @@ namespace APP::UI {
         void init_bluetooth();
 
 
-        // @brief Deinitialise Bluetooth (disable).
+        // @brief Deinitialize Bluetooth (disable).
         void deinit_bluetooth();
 
-        
+
         static void timer_callback(lv_timer_t* timer);
 
 
@@ -105,22 +114,23 @@ namespace APP::UI {
         static void connect_btn_event_cb(lv_event_t* e);
 
 
-        lv_obj_t*               m_screen = nullptr;
-        lv_obj_t*               m_list = nullptr;
-        lv_obj_t*               m_scan_btn = nullptr;
-        lv_obj_t*               m_status_label = nullptr;
-        lv_obj_t*               m_adv_btn = nullptr;            // advertising button (not fully used)
-        lv_obj_t*               m_connect_btn = nullptr;        // floating connect button
-        lv_timer_t*             m_update_timer = nullptr;       // timer to poll the BLE queue
+        lv_obj_t*           m_screen = nullptr;
+        lv_obj_t*           m_pattern_canvas = nullptr;
+        lv_obj_t*           m_list = nullptr;
+        lv_obj_t*           m_scan_btn = nullptr;
+        lv_obj_t*           m_status_label = nullptr;
+        lv_obj_t*           m_adv_btn = nullptr;
+        lv_obj_t*           m_connect_btn = nullptr;
+        lv_timer_t*         m_update_timer = nullptr;
 
-        // ----- BLE state -----
-        bool                    m_scanning = false;             // whether a scan is active
-        ble_device_t            m_devices[MAX_DEVICES];         // array of discovered devices
-        size_t                  m_device_count = 0;             // number of devices currently in the list
-        ble_device_t            m_selected_device = {};         // selected device structure
-        bool                    m_device_selected = false;      // whether a device is selected
-        lv_obj_t*               m_selected_item = nullptr;      // highlighted list item
-        bool                    m_bluetooth_enabled = false;    // global Bluetooth state
+        bool                m_scanning = false;
+        ble_device_t        m_devices[MAX_DEVICES];
+        size_t              m_device_count = 0;
+        ble_device_t        m_selected_device = {};
+        bool                m_device_selected = false;
+        lv_obj_t*           m_selected_item = nullptr;   // weak pointer, re‑established in sync_ui()
+        size_t              m_selected_index = 0;        // index into m_devices
+        bool                m_bluetooth_enabled = false;
     };
 
 }

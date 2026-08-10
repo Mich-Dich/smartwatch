@@ -10,12 +10,6 @@
 
 // FORWARD DECLARATIONS ================================================================================================
 
-extern "C" {
-
-    void setBrightens(u8 brig);
-
-}
-
 namespace APP::UI {
 
     // TYPES ===========================================================================================================
@@ -31,10 +25,49 @@ namespace APP::UI {
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
-    
+
+    static void set_clock_from_compile_time(APP::clock& clock, int offset_minutes);
+
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
+
+    static void set_clock_from_compile_time(APP::clock& clock, int offset_minutes) {
+
+        static const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+        int day, year, hour, min, sec;
+        char month_str[4];
+
+        // Parse __DATE__ (format: "Mmm dd yyyy") and __TIME__ (format: "hh:mm:ss")
+        sscanf(__DATE__, "%3s %d %d", month_str, &day, &year);
+        sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
+
+        // Find month index (0‑based)
+        int month = 0;
+        for (int i = 0; i < 12; i++) {
+            if (strcmp(month_str, months[i]) == 0) {
+                month = i;
+                break;
+            }
+        }
+
+        // We only need time, not date, so ignore year/month/day.
+        min += offset_minutes;                  // Add offset (minutes)
+        while (min >= 60) {
+            min -= 60;
+            hour++;
+            if (hour >= 24) hour = 0;
+        }
+
+        while (min < 0) {                       // just in case
+            min += 60;
+            hour--;
+            if (hour < 0) hour = 23;
+        }
+        clock.hours = hour;
+        clock.minutes = min;
+        clock.seconds = sec;
+    }
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
@@ -67,62 +100,17 @@ namespace APP::UI {
         lv_obj_set_style_bg_color(scr, lv_color_hex(0x000000), 0);
         lv_obj_set_style_bg_opa(scr, LV_OPA_COVER, 0);
 
-        // Hide all existing widgets from SquareLine (they are from the old design)
-        uint32_t child_cnt = lv_obj_get_child_cnt(scr);
-        for (uint32_t i = 0; i < child_cnt; i++) {
+        u32 child_cnt = lv_obj_get_child_cnt(scr);     // Hide all existing widgets from SquareLine
+        for (u32 i = 0; i < child_cnt; i++) {
             lv_obj_t* child = lv_obj_get_child(scr, i);
-            // Do not hide newly created labels (they aren't created yet)
-            lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(child, LV_OBJ_FLAG_HIDDEN);     // Do hide newly created labels
         }
 
-        APP::UI::util::create_geometric_pattern_2(scr, highlight_color, support_color);
+        create_ui_elements();                               // Create the custom UI elements
 
-        // Create Hour label
-        m_hour_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_hour_label, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_hour_label, &wildgrin_152, 0);
-        lv_label_set_text(m_hour_label, "00");
-        lv_obj_align(m_hour_label, LV_ALIGN_CENTER, 0, -60); // adjust Y offset as needed
-
-        // Create Minute label
-        m_minute_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_minute_label, lv_color_hex(0xAAAAAA), 0);
-        lv_obj_set_style_text_font(m_minute_label, &wildgrin_152, 0);
-        lv_label_set_text(m_minute_label, "00");
-        lv_obj_align(m_minute_label, LV_ALIGN_CENTER, 0, 60); // adjust Y offset
-
-        // Create Second label (next to minute, blue, smaller)
-        m_second_label = lv_label_create(scr);
-        lv_obj_set_style_text_color(m_second_label, lv_color_hex(0x0066FF), 0); // blue
-        lv_obj_set_style_text_font(m_second_label, &inconsolata_regular_48, 0); // or lv_font_montserrat_48
-        lv_label_set_text(m_second_label, "00");
-        // Align to the right of the minute label
-        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 0, -20);
-
-        // --- Battery indicator (icon + percentage overlay) ---
-        m_battery_cont = lv_obj_create(scr);
-        lv_obj_set_size(m_battery_cont, 60, 60);
-        lv_obj_align(m_battery_cont, LV_ALIGN_TOP_RIGHT, -10, 10);
-        lv_obj_set_style_bg_opa(m_battery_cont, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(m_battery_cont, 0, 0);
-        lv_obj_clear_flag(m_battery_cont, LV_OBJ_FLAG_SCROLLABLE);
-
-        // Battery icon
-        m_battery_icon = lv_label_create(m_battery_cont);
-        lv_obj_set_style_text_color(m_battery_icon, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(m_battery_icon, &awesome_5_regular_42, 0);
-        lv_label_set_text(m_battery_icon, LV_SYMBOL_BATTERY_FULL);
-        lv_obj_align(m_battery_icon, LV_ALIGN_CENTER, 0, 0);
-
-        // Percentage overlay – smaller, bold, centered on top
-        m_battery_pct_label = lv_label_create(m_battery_cont);
-        lv_obj_set_style_text_color(m_battery_pct_label, support_color, 0);
-        lv_obj_set_style_text_font(m_battery_pct_label, &inconsolata_extra_bold_14, 0);
-        lv_label_set_text(m_battery_pct_label, "0%");
-        lv_obj_align(m_battery_pct_label, LV_ALIGN_CENTER, 0, 2);
-
-        update_clock();                     // Update all labels immediately
-        start_clock();                      // Start the timer to update every second
+        set_clock_from_compile_time(m_clock, 1);            // Set the clock to compile time + 1 minute
+        update_clock();                                     // Update all labels immediately
+        start_clock();                                      // Start the timer to update every second
 
         ESP_LOGI(TAG, "main_screen initialised");
     }
@@ -134,10 +122,42 @@ namespace APP::UI {
     void main_screen::hide()                            { lv_obj_add_flag(m_ui.screen, LV_OBJ_FLAG_HIDDEN); }
 
 
-    // LVGL objects are usually automatically freed when the screen is deleted,
-    // but we could call lv_obj_del(m_ui.screen) if needed.
-    // For now, we just clear the pointer.
-    void main_screen::destroy()                         { }
+    void main_screen::recreate_ui() {
+
+        lv_obj_t* scr = m_ui.screen;
+        if (!scr)
+            return;
+
+        // Free the buffer of the old canvas (if any)
+        if (m_pattern_canvas) {
+            void* buf = lv_obj_get_user_data(m_pattern_canvas);
+            if (buf)
+                lv_mem_free(buf);
+            m_pattern_canvas = nullptr;                 // The canvas itself will be deleted in the loop below
+        }
+
+        u32 child_cnt = lv_obj_get_child_cnt(scr);      // Delete all children that are NOT hidden (i.e., all our custom UI elements)
+        std::vector<lv_obj_t*> to_delete;               // We collect child pointers first because deletion modifies the list
+        for (u32 i = 0; i < child_cnt; i++) {
+            lv_obj_t* child = lv_obj_get_child(scr, i);
+            if (!lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN))
+                to_delete.push_back(child);
+        }
+        for (lv_obj_t* child : to_delete)
+            lv_obj_del(child);
+
+        // Reset pointers to nullptr (they are dangling now)
+        m_hour_label = nullptr;
+        m_minute_label = nullptr;
+        m_second_label = nullptr;
+        m_battery_cont = nullptr;
+        m_battery_icon = nullptr;
+        m_battery_pct_label = nullptr;
+        create_ui_elements();                           // Recreate UI with new colors
+        update_clock();                                 // Update time display immediately
+
+        ESP_LOGI(TAG, "UI recreated with new colors");
+    }
 
 
     lv_obj_t* main_screen::get_root()                   { return m_ui.screen; }
@@ -152,7 +172,61 @@ namespace APP::UI {
     // CLASS PROTECTED =================================================================================================
 
     // CLASS PRIVATE ===================================================================================================
-    
+
+    void main_screen::create_ui_elements() {
+
+        lv_obj_t* scr = m_ui.screen;
+        if (!scr)
+            return;
+
+        // Draw geometric pattern with current colors
+        m_pattern_canvas = APP::UI::util::create_geometric_pattern_2(scr, highlight_color, support_color);
+
+        // Hour label
+        m_hour_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_hour_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_hour_label, &wildgrin_152, 0);
+        lv_label_set_text(m_hour_label, "00");
+        lv_obj_align(m_hour_label, LV_ALIGN_CENTER, 0, -60);
+
+        // Minute label
+        m_minute_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_minute_label, lv_color_hex(0xAAAAAA), 0);
+        lv_obj_set_style_text_font(m_minute_label, &wildgrin_152, 0);
+        lv_label_set_text(m_minute_label, "00");
+        lv_obj_align(m_minute_label, LV_ALIGN_CENTER, 0, 60);
+
+        // Second label (blue – you might want this to use support_color or a fixed accent)
+        m_second_label = lv_label_create(scr);
+        lv_obj_set_style_text_color(m_second_label, support_color, 0);
+        lv_obj_set_style_text_font(m_second_label, &inconsolata_regular_48, 0);
+        lv_label_set_text(m_second_label, "00");
+        lv_obj_align_to(m_second_label, m_minute_label, LV_ALIGN_OUT_RIGHT_MID, 0, -20);
+
+        // Battery container
+        m_battery_cont = lv_obj_create(scr);
+        lv_obj_set_size(m_battery_cont, 60, 60);
+        lv_obj_align(m_battery_cont, LV_ALIGN_TOP_RIGHT, -10, 10);
+        lv_obj_set_style_bg_opa(m_battery_cont, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(m_battery_cont, 0, 0);
+        lv_obj_clear_flag(m_battery_cont, LV_OBJ_FLAG_SCROLLABLE);
+
+        // Battery icon
+        m_battery_icon = lv_label_create(m_battery_cont);
+        lv_obj_set_style_text_color(m_battery_icon, lv_color_hex(0xBCBCBC), 0);
+        lv_obj_set_style_text_font(m_battery_icon, &awesome_5_regular_42, 0);
+        lv_label_set_text(m_battery_icon, LV_SYMBOL_BATTERY_FULL);
+        lv_obj_align(m_battery_icon, LV_ALIGN_CENTER, 0, 0);
+
+        // Percentage overlay – using support_color
+        m_battery_pct_label = lv_label_create(m_battery_cont);
+        lv_obj_set_style_text_color(m_battery_pct_label, support_color, 0);
+        lv_obj_set_style_text_font(m_battery_pct_label, &inconsolata_extra_bold_14, 0);
+        lv_label_set_text(m_battery_pct_label, "0%");
+        lv_obj_align(m_battery_pct_label, LV_ALIGN_CENTER, 0, 2);
+    }
+
+
     void main_screen::start_clock() {
 
         // Static wrapper for the timer callback
@@ -207,13 +281,13 @@ namespace APP::UI {
 
         m_battery_buffer[m_battery_index] = raw;                            // Store in buffer
         m_battery_index = (m_battery_index + 1) % BATTERY_BUFFER_SIZE;
-        if (m_battery_count < BATTERY_BUFFER_SIZE) 
+        if (m_battery_count < BATTERY_BUFFER_SIZE)
             m_battery_count++;
 
         u16 sum = 0;                                                        // Compute average over available readings
         for (u8 i = 0; i < m_battery_count; i++)
             sum += m_battery_buffer[i];
-        
+
         // Determine battery icon based on percentage
         const i16 avg = sum / m_battery_count;
         const char* battery_symbol;
@@ -222,10 +296,10 @@ namespace APP::UI {
         else if (avg >= 40)     battery_symbol = LV_SYMBOL_BATTERY_2;
         else if (avg >= 20)     battery_symbol = LV_SYMBOL_BATTERY_1;
         else                    battery_symbol = LV_SYMBOL_BATTERY_EMPTY;
-        
+
         if (m_battery_icon)
             lv_label_set_text(m_battery_icon, battery_symbol);
-        
+
         // Update percentage overlay
         char pct_str[6];
         snprintf(pct_str, sizeof(pct_str), "%d%%", avg);
