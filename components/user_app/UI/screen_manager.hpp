@@ -87,7 +87,7 @@ namespace APP::UI::screen_manager {
 
     // Release a previously requested keep‑alive.
     // After the last release, dimming is re‑enabled.
-    void release_keep_alive(u32 handle);
+    void release_keep_alive(u32& handle);
 
 
     // Check if any keep‑alive is currently active.

@@ -697,7 +697,10 @@ namespace APP::UI::screen_manager {
     }
 
 
-    void release_keep_alive(u32 handle) {
+    void release_keep_alive(u32& handle) {
+
+        if (!handle)
+            return;
 
         if (s_keep_alive_count == 0) {
             ESP_LOGW(TAG, "release_keep_alive called with no active keep-alive");
@@ -707,6 +710,8 @@ namespace APP::UI::screen_manager {
         s_keep_alive_count--;
         if (s_keep_alive_count == 0)
             start_dim_timer();
+
+        handle = 0;
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

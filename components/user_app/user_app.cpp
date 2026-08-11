@@ -10,6 +10,7 @@
 #include "UI/screens/home_assist_screen.hpp"
 #include "UI/screens/settings_screen.hpp"
 #include "UI/screens/timer_screen.hpp"
+#include "UI/screens/stopwatch_screen.hpp"
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -61,7 +62,7 @@ namespace APP {
         APP::UI::screen_manager::register_screen("Bluetooth", std::move(std::make_unique<APP::UI::bluetooth_screen>()));
         APP::UI::screen_manager::register_screen("Home Assist", std::move(std::make_unique<APP::UI::home_assist_screen>()));
         APP::UI::screen_manager::register_screen("Timer", std::move(std::make_unique<APP::UI::timer_screen>()));
-        // APP::UI::screen_manager::register_screen("Stopwatch", std::move(std::make_unique<APP::UI::stopwatch_screen>()));
+        APP::UI::screen_manager::register_screen("Stopwatch", std::move(std::make_unique<APP::UI::stopwatch_screen>()));
         APP::UI::screen_manager::register_screen("Settings", std::move(std::make_unique<APP::UI::settings_screen>()));
         APP::UI::screen_manager::switch_to("Main");
     }

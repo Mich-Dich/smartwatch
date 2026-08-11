@@ -37,8 +37,8 @@ namespace APP::UI {
     // CLASS IMPLEMENTATION ============================================================================================
 
     timer_screen::timer_screen() = default;
-    
-    
+
+
     timer_screen::~timer_screen() { destroy(); }
 
     // CLASS PUBLIC ====================================================================================================
@@ -78,8 +78,9 @@ namespace APP::UI {
         update_display();                       // Otherwise, just show the set time
     }
 
+
     void timer_screen::hide() { }
-    
+
 
     void timer_screen::destroy() {
 
@@ -102,7 +103,7 @@ namespace APP::UI {
         m_pattern_canvas = nullptr;
     }
 
-    
+
     void timer_screen::recreate_ui() {
 
         if (!m_screen)
@@ -146,7 +147,7 @@ namespace APP::UI {
     // CLASS PROTECTED =================================================================================================
 
     // CLASS PRIVATE ===================================================================================================
-    
+
     void timer_screen::create_ui_elements() {
 
         // Background pattern (reuse util)
@@ -316,14 +317,14 @@ namespace APP::UI {
 
     void timer_screen::start_timer() {
 
-        if (m_remaining_seconds <= 0) {
-            // If at zero, reload from rollers
+        if (m_remaining_seconds <= 0) {         // If at zero, reload from rollers
             sync_ui();
             if (m_remaining_seconds <= 0) {
                 lv_label_set_text(m_status_label, "Set a time > 0");
                 return;
             }
         }
+        m_remaining_seconds++;
         m_is_running = true;
         m_is_paused = false;
         lv_timer_resume(m_tick_timer);
@@ -369,56 +370,64 @@ namespace APP::UI {
 
     void timer_screen::timer_tick() {
 
+        // If alarm is active, update elapsed time
+        if (m_alarm_cont) {
+            m_elapsed_seconds++;
+            update_elapsed_label();
+            return;
+        }
+
+        // Normal timer tick logic
         if (!m_is_running || m_is_paused)
             return;
 
         if (m_remaining_seconds > 0) {
             m_remaining_seconds--;
             update_display();
-            // Update status if nearing end? optional
         }
 
         if (m_remaining_seconds == 0) {
-            // Timer complete
             lv_timer_pause(m_tick_timer);
             m_is_running = false;
             m_is_paused = false;
             lv_label_set_text(m_status_label, "Time's up!");
             lv_obj_set_style_text_color(m_status_label, lv_color_hex(0xFF6666), 0);
             lv_label_set_text(lv_obj_get_child(m_start_pause_btn, 0), "Start");
-            // Optionally trigger a buzzer or visual alarm here
             on_timer_complete();
         }
     }
 
 
     void timer_screen::on_timer_complete() {
-        // Timer finished – show flashy alarm
-        ESP_LOGI(TAG, "Timer finished!");
+
+        ESP_LOGI(TAG, "Timer finished!");           // Timer finished – show flashy alarm
         show_alarm();
     }
 
 
     void timer_screen::show_alarm() {
-    
-        APP::UI::screen_manager::switch_to("Timer");
 
-        // Request keep‑alive to prevent dimming while alarm is active
+        // Request keep‑alive (only once)
         if (m_keep_alive_handle == 0) {
             m_keep_alive_handle = APP::UI::screen_manager::request_keep_alive();
             ESP_LOGI(TAG, "Keep-alive requested (handle: %u)", m_keep_alive_handle);
         }
 
-        // Hide normal UI elements (keep background pattern)
+        // Reset elapsed counter
+        m_elapsed_seconds = 0;
+
+        // Hide normal UI elements (including roller groups)
         lv_obj_add_flag(m_time_display, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(m_status_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(m_hour_roller, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(m_minute_roller, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(m_second_roller, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(m_start_pause_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(m_reset_btn, LV_OBJ_FLAG_HIDDEN);
 
-        // Create alarm container (full screen, on top)
+        // Hide the roller groups (parent of each roller)
+        if (m_hour_roller)   lv_obj_add_flag(lv_obj_get_parent(m_hour_roller), LV_OBJ_FLAG_HIDDEN);
+        if (m_minute_roller) lv_obj_add_flag(lv_obj_get_parent(m_minute_roller), LV_OBJ_FLAG_HIDDEN);
+        if (m_second_roller) lv_obj_add_flag(lv_obj_get_parent(m_second_roller), LV_OBJ_FLAG_HIDDEN);
+
+        // Create alarm container
         if (m_alarm_cont) {
             lv_obj_del(m_alarm_cont);
             m_alarm_cont = nullptr;
@@ -428,13 +437,19 @@ namespace APP::UI {
         lv_obj_set_style_bg_opa(m_alarm_cont, LV_OPA_TRANSP, 0);
         lv_obj_set_style_border_width(m_alarm_cont, 0, 0);
         lv_obj_clear_flag(m_alarm_cont, LV_OBJ_FLAG_SCROLLABLE);
-        lv_obj_clear_flag(m_alarm_cont, LV_OBJ_FLAG_CLICKABLE); // let touches pass to button
+        lv_obj_clear_flag(m_alarm_cont, LV_OBJ_FLAG_CLICKABLE);
         lv_obj_move_foreground(m_alarm_cont);
 
-        // Create radiating rings (they go behind the button)
-        create_rings();
+        create_rings();  // Create rings
 
-        // Big clock button (dismiss) – created after rings to be on top
+        // Create elapsed time label (positioned above the button)
+        m_elapsed_label = lv_label_create(m_alarm_cont);
+        lv_label_set_text(m_elapsed_label, "Elapsed: 00:00:00");
+        lv_obj_set_style_text_color(m_elapsed_label, lv_color_hex(0xFFFFFF), 0);
+        lv_obj_set_style_text_font(m_elapsed_label, &inconsolata_regular_26, 0);
+        lv_obj_align(m_elapsed_label, LV_ALIGN_TOP_MID, 0, 60);
+
+        // Big stop button (dismiss)
         m_clock_btn = lv_btn_create(m_alarm_cont);
         lv_obj_set_size(m_clock_btn, 160, 160);
         lv_obj_set_style_radius(m_clock_btn, LV_RADIUS_CIRCLE, 0);
@@ -444,19 +459,37 @@ namespace APP::UI {
         lv_obj_set_style_border_color(m_clock_btn, lv_color_hex(0xFFFFFF), 0);
         lv_obj_center(m_clock_btn);
         lv_obj_add_event_cb(m_clock_btn, alarm_btn_cb, LV_EVENT_CLICKED, this);
-        lv_obj_move_foreground(m_clock_btn);        // ensure on top
+        lv_obj_move_foreground(m_clock_btn);
 
         lv_obj_t* icon = lv_label_create(m_clock_btn);
-        lv_label_set_text(icon, LV_SYMBOL_STOP);
+        lv_label_set_text(icon, "STOP");
         lv_obj_set_style_text_color(icon, lv_color_hex(0xFFFFFF), 0);
-        lv_obj_set_style_text_font(icon, &inconsolata_regular_48, 0);
+        lv_obj_set_style_text_font(icon, &inconsolata_regular_26, 0);
         lv_obj_center(icon);
+
+        // Resume the tick timer so elapsed time updates
+        lv_timer_resume(m_tick_timer);
+    }
+
+
+    void timer_screen::update_elapsed_label() {
+        if (!m_elapsed_label)
+            return;
+        int h = m_elapsed_seconds / 3600;
+        int m = (m_elapsed_seconds % 3600) / 60;
+        int s = m_elapsed_seconds % 60;
+        char buf[32];
+        snprintf(buf, sizeof(buf), "Elapsed: %02d:%02d:%02d", h, m, s);
+        lv_label_set_text(m_elapsed_label, buf);
     }
 
 
     void timer_screen::dismiss_alarm() {
 
-        if (m_keep_alive_handle != 0) {             // Release keep‑alive
+        // Pause the tick timer (no need to keep ticking)
+        lv_timer_pause(m_tick_timer);
+
+        if (m_keep_alive_handle != 0) {
             APP::UI::screen_manager::release_keep_alive(m_keep_alive_handle);
             ESP_LOGI(TAG, "Keep-alive released (handle: %u)", m_keep_alive_handle);
             m_keep_alive_handle = 0;
@@ -467,26 +500,27 @@ namespace APP::UI {
             lv_obj_del(m_alarm_cont);
             m_alarm_cont = nullptr;
         }
-
         m_clock_btn = nullptr;
+        m_elapsed_label = nullptr;
         m_rings.clear();
 
-        // Unhide normal UI
+        // Restore normal UI (unhide all elements)
         lv_obj_clear_flag(m_time_display, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(m_status_label, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(m_hour_roller, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(m_minute_roller, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(m_second_roller, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(m_start_pause_btn, LV_OBJ_FLAG_HIDDEN);
         lv_obj_clear_flag(m_reset_btn, LV_OBJ_FLAG_HIDDEN);
 
-        // Reset timer to set time (stop any running state)
+        // Unhide the roller groups
+        if (m_hour_roller)   lv_obj_clear_flag(lv_obj_get_parent(m_hour_roller), LV_OBJ_FLAG_HIDDEN);
+        if (m_minute_roller) lv_obj_clear_flag(lv_obj_get_parent(m_minute_roller), LV_OBJ_FLAG_HIDDEN);
+        if (m_second_roller) lv_obj_clear_flag(lv_obj_get_parent(m_second_roller), LV_OBJ_FLAG_HIDDEN);
+
+        // Reset timer state
         if (m_is_running) {
-            lv_timer_pause(m_tick_timer);
             m_is_running = false;
             m_is_paused = false;
         }
-        sync_ui(); // re-read rollers
+        sync_ui();
         m_remaining_seconds = m_set_seconds;
         update_display();
         lv_label_set_text(m_status_label, "Reset");
@@ -496,27 +530,26 @@ namespace APP::UI {
 
 
     void timer_screen::create_rings() {
-        
-        // Create a set of rings (circles with border only) that expand and fade, repeating infinitely.
-        const int ring_count = 8;
-        const int border_width = 12;   // thick rings
-        const int max_size = 500;      // large enough to cover the screen
+
+        // Use fewer, thicker rings to reduce tearing
+        const int ring_count = 1;
+        const int border_width = 60;
+        const int max_size = 500;
         for (int i = 0; i < ring_count; ++i) {
+
             lv_obj_t* ring = lv_obj_create(m_alarm_cont);
             lv_obj_set_size(ring, 0, 0);
             lv_obj_set_style_bg_opa(ring, LV_OPA_TRANSP, 0);
             lv_obj_set_style_border_width(ring, border_width, 0);
             lv_obj_set_style_border_opa(ring, LV_OPA_COVER, 0);
-            // Alternate colours: black and white
-            lv_color_t col = (i % 2 == 0) ? lv_color_hex(0xFFFFFF) : lv_color_hex(0x000000);
-            lv_obj_set_style_border_color(ring, col, 0);
+            lv_obj_set_style_border_color(ring, lv_color_hex(0xFFFFFF), 0);
             lv_obj_set_style_radius(ring, LV_RADIUS_CIRCLE, 0);
-            lv_obj_center(ring); // centre of alarm container
-            lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE); // don't block touches
+            lv_obj_center(ring);
+            lv_obj_clear_flag(ring, LV_OBJ_FLAG_CLICKABLE);
 
             m_rings.push_back(ring);
 
-            // Animate size from 0 to max_size with delay and infinite repeat
+            // Size animation
             lv_anim_t a;
             lv_anim_init(&a);
             lv_anim_set_var(&a, ring);
@@ -525,12 +558,12 @@ namespace APP::UI {
             });
             lv_anim_set_values(&a, 0, max_size);
             lv_anim_set_time(&a, 2000);
-            lv_anim_set_delay(&a, i * 150);
+            lv_anim_set_delay(&a, i * 200);
             lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
             lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
             lv_anim_start(&a);
 
-            // Also animate opacity from 255 to 0 with same timing
+            // Opacity animation
             lv_anim_t a_opa;
             lv_anim_init(&a_opa);
             lv_anim_set_var(&a_opa, ring);
@@ -539,7 +572,7 @@ namespace APP::UI {
             });
             lv_anim_set_values(&a_opa, 255, 0);
             lv_anim_set_time(&a_opa, 2000);
-            lv_anim_set_delay(&a_opa, i * 150);
+            lv_anim_set_delay(&a_opa, i * 200);
             lv_anim_set_path_cb(&a_opa, lv_anim_path_linear);
             lv_anim_set_repeat_count(&a_opa, LV_ANIM_REPEAT_INFINITE);
             lv_anim_start(&a_opa);
@@ -566,23 +599,24 @@ namespace APP::UI {
     void timer_screen::start_pause_btn_cb(lv_event_t* e) {
 
         timer_screen* self = static_cast<timer_screen*>(lv_event_get_user_data(e));
-        if (!self) return;
+        if (!self)
+            return;
 
-        if (!self->m_is_running) {
-            // Not running: start
+        if (!self->m_is_running) {              // Not running: start
+
             self->sync_ui(); // ensure set time is fresh
             self->start_timer();
-        } else if (self->m_is_paused) {
-            // Paused: resume
+        
+        } else if (self->m_is_paused) {         // Paused: resume
+
             self->m_is_paused = false;
             lv_timer_resume(self->m_tick_timer);
             lv_label_set_text(self->m_status_label, "Running");
             lv_obj_set_style_text_color(self->m_status_label, lv_color_hex(0x88FF88), 0);
             lv_label_set_text(lv_obj_get_child(self->m_start_pause_btn, 0), "Pause");
-        } else {
-            // Running: pause
+
+        } else                                  // Running: pause
             self->pause_timer();
-        }
     }
 
 

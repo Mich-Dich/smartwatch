@@ -47,12 +47,13 @@ namespace APP::UI {
         void reset_timer();
         void timer_tick();
         void on_timer_complete();
+        void update_elapsed_label();
 
         // Alarm helpers
-        void show_alarm();                           // create and show alarm overlay
-        void dismiss_alarm();                        // remove alarm, restore normal UI
-        void create_rings();                         // create the animated ring objects
-        static void alarm_btn_cb(lv_event_t* e);     // callback for clock button
+        void show_alarm();                                          // create and show alarm overlay
+        void dismiss_alarm();                                       // remove alarm, restore normal UI
+        void create_rings();                                        // create the animated ring objects
+        static void alarm_btn_cb(lv_event_t* e);                    // callback for clock button
 
         // LVGL callbacks
         static void tick_cb(lv_timer_t* timer);
@@ -64,8 +65,9 @@ namespace APP::UI {
         // UI elements
         lv_obj_t*                   m_screen = nullptr;
         lv_obj_t*                   m_pattern_canvas = nullptr;
-        lv_obj_t*                   m_time_display = nullptr;          // big label showing HH:MM:SS
-        lv_obj_t*                   m_status_label = nullptr;          // shows "Running", "Paused", "Time's up!"
+        lv_obj_t*                   m_time_display = nullptr;       // big label showing HH:MM:SS
+        lv_obj_t*                   m_status_label = nullptr;       // shows "Running", "Paused", "Time's up!"
+        lv_obj_t*                   m_roller_container = nullptr;
         lv_obj_t*                   m_hour_roller = nullptr;
         lv_obj_t*                   m_minute_roller = nullptr;
         lv_obj_t*                   m_second_roller = nullptr;
@@ -73,15 +75,18 @@ namespace APP::UI {
         lv_obj_t*                   m_reset_btn = nullptr;
 
         // Alarm UI
-        lv_obj_t*                   m_alarm_cont = nullptr;            // full‑screen container for alarm
-        lv_obj_t*                   m_clock_btn = nullptr;             // big button with clock symbol
-        std::vector<lv_obj_t*>      m_rings;              // expanding rings (circle objects)
+        lv_obj_t*                   m_alarm_cont = nullptr;         // full‑screen container for alarm
+        lv_obj_t*                   m_clock_btn = nullptr;          // big button with clock symbol
+        std::vector<lv_obj_t*>      m_rings;                        // expanding rings (circle objects)
+        lv_obj_t*                   m_elapsed_label = nullptr;      // shows elapsed time since alarm
 
         // Timer state
-        int32_t                     m_remaining_seconds = 0;
-        int32_t                     m_set_seconds = 0;
+        i32                         m_remaining_seconds = 0;
+        i32                         m_set_seconds = 0;
         bool                        m_is_running = false;
         bool                        m_is_paused = false;
+        i32                         m_elapsed_seconds = 0;             // seconds since alarm started
+
         
         u32                         m_keep_alive_handle = 0;
         lv_timer_t*                 m_tick_timer = nullptr;
