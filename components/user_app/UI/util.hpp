@@ -129,6 +129,16 @@ namespace APP::UI::util {
     lv_obj_t* create_geometric_pattern_2(lv_obj_t* screen, lv_color_t color1, lv_color_t color2);
 
 
+    // @brief Create a labelled roller with fade mask (like the settings screen).
+    // @param parent     Parent LVGL object.
+    // @param label_text Text shown above the roller.
+    // @param max_val    Maximum value (e.g., 23 for hours).
+    // @param two_digit  If true, numbers are formatted as %02d.
+    // @param mask_cb    Optional custom mask event callback; if nullptr, uses the default.
+    // @return           The created roller LVGL object.
+    lv_obj_t* create_roller(lv_obj_t* parent, const char* label_text, int max_val, bool two_digit, lv_event_cb_t mask_cb = nullptr);
+
+
     // @brief Convert an LVGL point (pixel coordinates) to percent (0‑100) of display size.
     // @param p  LVGL point in pixels.
     // @return   vec_2d with percent values.

@@ -80,4 +80,17 @@ namespace APP::UI::screen_manager {
 
     void recreate_screens();
 
+    // Request a keep‑alive to prevent display dimming/sleep.
+    // Returns a handle (ID) that must be used when releasing.
+    u32 request_keep_alive();
+
+
+    // Release a previously requested keep‑alive.
+    // After the last release, dimming is re‑enabled.
+    void release_keep_alive(u32 handle);
+
+
+    // Check if any keep‑alive is currently active.
+    bool has_keep_alive();
+
 }

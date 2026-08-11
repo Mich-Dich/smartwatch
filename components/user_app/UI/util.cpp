@@ -21,9 +21,61 @@ namespace APP::UI::util {
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
 
+    // Default mask callback – identical to the one in settings_screen.
+    void default_roller_mask_cb(lv_event_t* e);
+
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
+
+    void default_roller_mask_cb(lv_event_t* e) {
+
+        static int16_t mask_top_id = -1;
+        static int16_t mask_bottom_id = -1;
+
+        lv_event_code_t code = lv_event_get_code(e);
+        lv_obj_t* obj = lv_event_get_target(e);
+
+        if (code == LV_EVENT_COVER_CHECK)
+            lv_event_set_cover_res(e, LV_COVER_RES_MASKED);
+        
+        else if (code == LV_EVENT_DRAW_MAIN_BEGIN) {
+            const lv_font_t* font = lv_obj_get_style_text_font(obj, LV_PART_MAIN);
+            lv_coord_t line_space = lv_obj_get_style_text_line_space(obj, LV_PART_MAIN);
+            lv_coord_t font_h = lv_font_get_line_height(font);
+
+            lv_area_t roller_coords;
+            lv_obj_get_coords(obj, &roller_coords);
+
+            lv_area_t rect_area;
+            rect_area.x1 = roller_coords.x1;
+            rect_area.x2 = roller_coords.x2;
+            rect_area.y1 = roller_coords.y1;
+            rect_area.y2 = roller_coords.y1 + (lv_obj_get_height(obj) - font_h - line_space) / 2;
+
+            lv_draw_mask_fade_param_t* fade_mask_top = (lv_draw_mask_fade_param_t*)lv_mem_buf_get(sizeof(lv_draw_mask_fade_param_t));
+            lv_draw_mask_fade_init(fade_mask_top, &rect_area, LV_OPA_TRANSP, rect_area.y1, LV_OPA_COVER, rect_area.y2);
+            mask_top_id = lv_draw_mask_add(fade_mask_top, NULL);
+
+            rect_area.y1 = rect_area.y2 + font_h + line_space - 1;
+            rect_area.y2 = roller_coords.y2;
+
+            lv_draw_mask_fade_param_t* fade_mask_bottom = (lv_draw_mask_fade_param_t*)lv_mem_buf_get(sizeof(lv_draw_mask_fade_param_t));
+            lv_draw_mask_fade_init(fade_mask_bottom, &rect_area, LV_OPA_COVER, rect_area.y1, LV_OPA_TRANSP, rect_area.y2);
+            mask_bottom_id = lv_draw_mask_add(fade_mask_bottom, NULL);
+        
+        } else if (code == LV_EVENT_DRAW_POST_END) {
+
+            lv_draw_mask_fade_param_t* fade_mask_top = (lv_draw_mask_fade_param_t*)lv_draw_mask_remove_id(mask_top_id);
+            lv_draw_mask_fade_param_t* fade_mask_bottom = (lv_draw_mask_fade_param_t*)lv_draw_mask_remove_id(mask_bottom_id);
+            lv_draw_mask_free_param(fade_mask_top);
+            lv_draw_mask_free_param(fade_mask_bottom);
+            lv_mem_buf_release(fade_mask_top);
+            lv_mem_buf_release(fade_mask_bottom);
+            mask_top_id = -1;
+            mask_bottom_id = -1;
+        }
+    }
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
@@ -388,6 +440,54 @@ namespace APP::UI::util {
         return canvas;
     }
 
+
+    lv_obj_t* create_roller(lv_obj_t* parent, const char* label_text, int max_val, bool two_digit, lv_event_cb_t mask_cb) {
+
+        if (mask_cb == nullptr)
+            mask_cb = default_roller_mask_cb;
+
+        lv_obj_t* group = lv_obj_create(parent);
+        lv_obj_set_size(group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(group, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(group, 0, 0);
+        lv_obj_set_flex_flow(group, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_flex_align(group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+
+        lv_obj_t* label = lv_label_create(group);
+        lv_label_set_text(label, label_text);
+        lv_obj_set_style_text_color(label, lv_color_hex(0xCCCCCC), 0);
+        lv_obj_set_style_text_font(label, &inconsolata_regular_26, 0);
+
+        lv_obj_t* roller = lv_roller_create(group);
+        lv_obj_set_style_bg_opa(roller, LV_OPA_TRANSP, LV_PART_MAIN);
+        lv_obj_set_style_border_width(roller, 0, LV_PART_MAIN);
+        lv_obj_set_style_text_color(roller, lv_color_hex(0xCCCCCC), LV_PART_MAIN);
+        lv_obj_set_style_text_font(roller, &inconsolata_regular_26, LV_PART_MAIN);
+        lv_obj_set_style_text_font(roller, &inconsolata_regular_48, LV_PART_SELECTED);
+        lv_obj_set_style_text_color(roller, lv_color_hex(0xFFFFFF), LV_PART_SELECTED);
+        lv_obj_set_style_bg_opa(roller, LV_OPA_TRANSP, LV_PART_SELECTED);
+        lv_obj_set_style_border_width(roller, 0, LV_PART_SELECTED);
+        lv_obj_set_style_radius(roller, 0, 0);
+
+        std::string opts;
+        for (int i = 0; i <= max_val; ++i) {
+            char buf[4];
+            if (two_digit)
+                snprintf(buf, sizeof(buf), "%02d", i);
+            else
+                snprintf(buf, sizeof(buf), "%d", i);
+            opts += buf;
+            opts += "\n";
+        }
+        opts.pop_back();
+        lv_roller_set_options(roller, opts.c_str(), LV_ROLLER_MODE_NORMAL);
+        lv_obj_set_size(roller, 40, 80);
+        lv_roller_set_visible_row_count(roller, 3);
+        lv_obj_add_event_cb(roller, mask_cb, LV_EVENT_ALL, nullptr);
+
+        return roller;
+    }
+    
 
     vec_2d lv_point_to_percent(const lv_point_t& p) {
 

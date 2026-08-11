@@ -263,14 +263,6 @@ namespace APP::UI {
             u16 initial_brightness = getBrightens();
             lv_slider_set_value(m_slider, initial_brightness, LV_ANIM_OFF);
             lv_obj_add_event_cb(m_slider, slider_event_cb, LV_EVENT_VALUE_CHANGED, this);
-
-            // m_brightness_value_label = lv_label_create(slider_row);
-            // char buf[8];
-            // snprintf(buf, sizeof(buf), "%d%%", (int)(initial_brightness * 100 / 255));
-            // lv_label_set_text(m_brightness_value_label, buf);
-            // lv_obj_set_style_text_color(m_brightness_value_label, lv_color_hex(0xFFFFFF), 0);
-            // lv_obj_set_style_text_font(m_brightness_value_label, &inconsolata_regular_26, 0);
-            // lv_obj_set_style_pad_left(m_brightness_value_label, 10, 0);
         }
 
         {   // Color wheels – stacked vertically ---------------------------------------
@@ -385,83 +377,9 @@ namespace APP::UI {
             lv_obj_set_style_pad_left(time_row, 5, 0);
             lv_obj_set_style_pad_right(time_row, 5, 0);
 
-            // Hour roller
-            lv_obj_t* hour_group = lv_obj_create(time_row);
-            lv_obj_set_size(hour_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_style_bg_opa(hour_group, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_border_width(hour_group, 0, 0);
-            lv_obj_set_style_border_side(hour_group, LV_BORDER_SIDE_NONE, 0);
-            lv_obj_set_style_outline_width(hour_group, 0, 0);
-            lv_obj_set_style_outline_opa(hour_group, LV_OPA_TRANSP, 0);
-            lv_obj_set_flex_flow(hour_group, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_flex_align(hour_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-            lv_obj_t* hour_label = lv_label_create(hour_group);
-            lv_label_set_text(hour_label, "Hour");
-            lv_obj_set_style_text_color(hour_label, lv_color_hex(0xCCCCCC), 0);
-
-            m_hour_roller = lv_roller_create(hour_group);
-            lv_obj_set_style_bg_opa(m_hour_roller, LV_OPA_TRANSP, LV_PART_MAIN);
-            lv_obj_set_style_border_width(m_hour_roller, 0, LV_PART_MAIN);
-            lv_obj_set_style_text_color(m_hour_roller, lv_color_hex(0xCCCCCC), LV_PART_MAIN);
-            lv_obj_set_style_text_font(m_hour_roller, &inconsolata_regular_26, LV_PART_MAIN);
-            lv_obj_set_style_text_font(m_hour_roller, &inconsolata_regular_48, LV_PART_SELECTED);
-            lv_obj_set_style_text_color(m_hour_roller, lv_color_hex(0xFFFFFF), LV_PART_SELECTED);
-            lv_obj_set_style_bg_opa(m_hour_roller, LV_OPA_TRANSP, LV_PART_SELECTED);
-            lv_obj_set_style_border_width(m_hour_roller, 0, LV_PART_SELECTED);
-
-            std::string hour_opts;
-            for (int i = 0; i < 24; ++i) {
-                char buf[3];
-                snprintf(buf, sizeof(buf), "%02d", i);
-                hour_opts += buf;
-                hour_opts += "\n";
-            }
-            hour_opts.pop_back();
-            lv_roller_set_options(m_hour_roller, hour_opts.c_str(), LV_ROLLER_MODE_NORMAL);
-            lv_obj_set_size(m_hour_roller, 40, 80);          // Reduced width
-            lv_obj_set_style_radius(m_hour_roller, 0, 0);
-            lv_roller_set_visible_row_count(m_hour_roller, 3);
-            lv_obj_add_event_cb(m_hour_roller, roller_mask_event_cb, LV_EVENT_ALL, NULL);
-
-            // Minute roller
-            lv_obj_t* minute_group = lv_obj_create(time_row);
-            lv_obj_set_size(minute_group, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-            lv_obj_set_style_bg_opa(minute_group, LV_OPA_TRANSP, 0);
-            lv_obj_set_style_border_width(minute_group, 0, 0);
-            lv_obj_set_style_border_side(minute_group, LV_BORDER_SIDE_NONE, 0);
-            lv_obj_set_style_outline_width(minute_group, 0, 0);
-            lv_obj_set_style_outline_opa(minute_group, LV_OPA_TRANSP, 0);
-            lv_obj_set_flex_flow(minute_group, LV_FLEX_FLOW_COLUMN);
-            lv_obj_set_flex_align(minute_group, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-            lv_obj_t* minute_label = lv_label_create(minute_group);
-            lv_label_set_text(minute_label, "Minute");
-            lv_obj_set_style_text_color(minute_label, lv_color_hex(0xCCCCCC), 0);
-
-            m_minute_roller = lv_roller_create(minute_group);
-            lv_obj_set_style_bg_opa(m_minute_roller, LV_OPA_TRANSP, LV_PART_MAIN);
-            lv_obj_set_style_border_width(m_minute_roller, 0, LV_PART_MAIN);
-            lv_obj_set_style_text_color(m_minute_roller, lv_color_hex(0xCCCCCC), LV_PART_MAIN);
-            lv_obj_set_style_text_font(m_minute_roller, &inconsolata_regular_26, LV_PART_MAIN);
-            lv_obj_set_style_text_font(m_minute_roller, &inconsolata_regular_48, LV_PART_SELECTED);
-            lv_obj_set_style_text_color(m_minute_roller, lv_color_hex(0xFFFFFF), LV_PART_SELECTED);
-            lv_obj_set_style_bg_opa(m_minute_roller, LV_OPA_TRANSP, LV_PART_SELECTED);
-            lv_obj_set_style_border_width(m_minute_roller, 0, LV_PART_SELECTED);
-
-            std::string min_opts;
-            for (int i = 0; i < 60; ++i) {
-                char buf[3];
-                snprintf(buf, sizeof(buf), "%02d", i);
-                min_opts += buf;
-                min_opts += "\n";
-            }
-            min_opts.pop_back();
-            lv_roller_set_options(m_minute_roller, min_opts.c_str(), LV_ROLLER_MODE_NORMAL);
-            lv_obj_set_size(m_minute_roller, 40, 80);
-            lv_obj_set_style_radius(m_minute_roller, 0, 0);
-            lv_roller_set_visible_row_count(m_minute_roller, 3);
-            lv_obj_add_event_cb(m_minute_roller, roller_mask_event_cb, LV_EVENT_ALL, NULL);
+            // Create hour and minute rollers using the utility
+            m_hour_roller = APP::UI::util::create_roller(time_row, "Hour", 23, true);
+            m_minute_roller = APP::UI::util::create_roller(time_row, "Minute", 59, true);
 
             // Set button – slightly smaller
             m_set_time_btn = lv_btn_create(time_row);

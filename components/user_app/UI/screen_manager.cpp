@@ -95,6 +95,8 @@ namespace APP::UI::screen_manager {
 
     static lv_point_t                                                       s_touch_last = {0, 0};
 
+    static u32                                                              s_keep_alive_count = 0;   // number of active keep‑alives
+
     // INTERNAL TEMPLATE DECLARATION ===================================================================================
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
@@ -195,6 +197,7 @@ namespace APP::UI::screen_manager {
 
 
     static void full_second_cb(void* arg) {
+
         constexpr f32 CONNECTED_POWER_DIFFERENCE = 0.30f;
         static f32 previous_voltage = 0;
 
@@ -202,16 +205,21 @@ namespace APP::UI::screen_manager {
         APP::system::get_battery_voltage(adjusted, raw_voltage);
 
         if (raw_voltage > (previous_voltage + CONNECTED_POWER_DIFFERENCE)) {
+
             wake_system_event();
             rearm_sleep_system();
             APP::system::set_charger_connected(true);
         }
+
         if (raw_voltage < (previous_voltage - CONNECTED_POWER_DIFFERENCE)) {
+
             wake_system_event();
             rearm_sleep_system();
             APP::system::set_charger_connected(false);
         }
         previous_voltage = raw_voltage;
+
+        // check if the screen need to be kep alive
     }
 
 
@@ -460,10 +468,15 @@ namespace APP::UI::screen_manager {
 
 
     static void start_dim_timer() {
-#if USE_ESP_SLEEP_MODE
-        if (s_is_sleeping)
+
+        #if USE_ESP_SLEEP_MODE
+            if (s_is_sleeping)
+                return;
+        #endif
+
+        if (s_keep_alive_count > 0)         // If any keep‑alive is active, do not start the dim timer.
             return;
-#endif
+
         if (s_dim_timer == nullptr) {
             esp_timer_create_args_t args = {
                 .callback = dim_timer_cb,
@@ -666,6 +679,34 @@ namespace APP::UI::screen_manager {
 
         for (const auto& [name, screen] : s_ordered_screens)
             screen->recreate_ui();
+    }
+
+
+    u32 request_keep_alive() {
+
+        if (s_keep_alive_count == 0) {
+            wake_system_event();            // Wake the system (restore brightness, stop dim/sleep timers)
+            stop_dim_timer();               // Ensure dim timer is stopped (it might be running)
+            #if USE_ESP_SLEEP_MODE
+                stop_sleep_timer();
+            #endif
+        }
+        s_keep_alive_count++;
+        return s_keep_alive_count;          // Return a simple handle (the count after increment). 
+                                            // This is safe as long as the caller stores it and only releases once.
+    }
+
+
+    void release_keep_alive(u32 handle) {
+
+        if (s_keep_alive_count == 0) {
+            ESP_LOGW(TAG, "release_keep_alive called with no active keep-alive");
+            return;
+        }
+
+        s_keep_alive_count--;
+        if (s_keep_alive_count == 0)
+            start_dim_timer();
     }
 
     // CLASS IMPLEMENTATION ============================================================================================

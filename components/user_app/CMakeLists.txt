@@ -15,6 +15,28 @@ idf_component_register(
     INCLUDE_DIRS    "./"
 )
 
+set(COMPILE_TIME_HEADER "${CMAKE_CURRENT_BINARY_DIR}/compile_time.h")
+
+# Use a shell command to generate the header
+add_custom_command(
+    OUTPUT ${COMPILE_TIME_HEADER}
+    COMMAND sh -c "echo '// Auto-generated' > ${COMPILE_TIME_HEADER} && \
+                   echo '#define BUILD_HOUR   '$(date +%H) >> ${COMPILE_TIME_HEADER} && \
+                   echo '#define BUILD_MINUTE '$(date +%M) >> ${COMPILE_TIME_HEADER} && \
+                   echo '#define BUILD_SECOND '$(date +%S) >> ${COMPILE_TIME_HEADER}"
+    DEPENDS
+    VERBATIM
+)
+
+# Ensure the header is built before compiling main_screen.cpp
+add_custom_target(gen_compile_time DEPENDS ${COMPILE_TIME_HEADER})
+
+# Make the component library depend on that target so the header is generated before compilation
+add_dependencies(${COMPONENT_LIB} gen_compile_time)
+
+target_include_directories(${COMPONENT_LIB} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+set_source_files_properties(main_screen.cpp PROPERTIES OBJECT_DEPENDS ${COMPILE_TIME_HEADER})   # Force recompilation of main_screen.cpp when compile_time.h changes
+
 # Set C++ standard and suppress LVGL enum warning
 target_compile_options(${COMPONENT_LIB}         PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:

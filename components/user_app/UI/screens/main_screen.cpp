@@ -6,6 +6,8 @@
 #include "util/system.hpp"
 #include "UI/util.hpp"
 #include "UI/screen_manager.hpp"
+#include "compile_time.h"
+
 
 
 // FORWARD DECLARATIONS ================================================================================================
@@ -26,48 +28,9 @@ namespace APP::UI {
 
     // INTERNAL FUNCTION DECLARATION ===================================================================================
 
-    static void set_clock_from_compile_time(APP::clock& clock, int offset_minutes);
-
     // INTERNAL TEMPLATE IMPLEMENTATION ================================================================================
 
     // INTERNAL FUNCTION IMPLEMENTATION ================================================================================
-
-    static void set_clock_from_compile_time(APP::clock& clock, int offset_minutes) {
-
-        static const char* months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-        int day, year, hour, min, sec;
-        char month_str[4];
-
-        // Parse __DATE__ (format: "Mmm dd yyyy") and __TIME__ (format: "hh:mm:ss")
-        sscanf(__DATE__, "%3s %d %d", month_str, &day, &year);
-        sscanf(__TIME__, "%d:%d:%d", &hour, &min, &sec);
-
-        // Find month index (0‑based)
-        int month = 0;
-        for (int i = 0; i < 12; i++) {
-            if (strcmp(month_str, months[i]) == 0) {
-                month = i;
-                break;
-            }
-        }
-
-        // We only need time, not date, so ignore year/month/day.
-        min += offset_minutes;                  // Add offset (minutes)
-        while (min >= 60) {
-            min -= 60;
-            hour++;
-            if (hour >= 24) hour = 0;
-        }
-
-        while (min < 0) {                       // just in case
-            min += 60;
-            hour--;
-            if (hour < 0) hour = 23;
-        }
-        clock.hours = hour;
-        clock.minutes = min;
-        clock.seconds = sec;
-    }
 
     // TEMPLATE IMPLEMENTATION =========================================================================================
 
@@ -108,7 +71,9 @@ namespace APP::UI {
 
         create_ui_elements();                               // Create the custom UI elements
 
-        set_clock_from_compile_time(m_clock, 1);            // Set the clock to compile time + 1 minute
+        m_clock.hours = BUILD_HOUR;
+        m_clock.minutes = BUILD_MINUTE;
+        m_clock.seconds = BUILD_SECOND;
         update_clock();                                     // Update all labels immediately
         start_clock();                                      // Start the timer to update every second
 
