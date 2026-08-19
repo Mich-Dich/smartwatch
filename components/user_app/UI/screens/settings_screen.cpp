@@ -373,13 +373,12 @@ namespace APP::UI {
             lv_obj_set_style_outline_opa(time_row, LV_OPA_TRANSP, 0);
             lv_obj_set_flex_flow(time_row, LV_FLEX_FLOW_ROW);
             lv_obj_set_flex_align(time_row, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-            // Add small horizontal padding so items don't touch edges
-            lv_obj_set_style_pad_left(time_row, 5, 0);
-            lv_obj_set_style_pad_right(time_row, 5, 0);
+            lv_obj_set_style_pad_left(time_row, 0, 0);
+            lv_obj_set_style_pad_right(time_row, 0, 0);
 
             // Create hour and minute rollers using the utility
-            m_hour_roller = APP::UI::util::create_roller(time_row, "Hour", 23, true);
-            m_minute_roller = APP::UI::util::create_roller(time_row, "Minute", 59, true);
+            m_hour_roller = APP::UI::util::create_roller(time_row, "H", 23, true);
+            m_minute_roller = APP::UI::util::create_roller(time_row, "M", 59, true);
 
             // Set button – slightly smaller
             m_set_time_btn = lv_btn_create(time_row);
